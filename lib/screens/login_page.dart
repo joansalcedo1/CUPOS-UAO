@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_cuposuao/screens/register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -30,10 +31,12 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _register() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Redirigiendo a registro...')),
-    );
-  }
+  Navigator.push(
+    context,
+    MaterialPageRoute(builder: (context) => const RegisterPage()),
+  );
+}
+
 
   void _loginWithGoogle() {
     // Aquí luego puedes integrar Google Sign-In
@@ -54,6 +57,16 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                const Text(
+                  'Cupos UAO',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 10),
                 Image.asset(
                   'Images/LogoCuposUAO.png',
                   height: 200, // ajusta el tamaño según necesites
