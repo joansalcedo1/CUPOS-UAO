@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_cuposuao/screens/login_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -21,6 +22,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController primerApellidoCtrl = TextEditingController();
   final TextEditingController segundoApellidoCtrl = TextEditingController();
   final TextEditingController correoCtrl = TextEditingController();
+  final TextEditingController contrasenaCtrl = TextEditingController();
   final TextEditingController identificacionCtrl = TextEditingController();
   final TextEditingController telefonoCtrl = TextEditingController();
 
@@ -36,6 +38,7 @@ class _RegisterPageState extends State<RegisterPage> {
   String? _tipoIdSeleccionado;
   bool _saving = false;
   ImageProvider? _avatarImage; // en el futuro: foto real del usuario
+  bool _verContrasena = false;
 
   @override
   void dispose() {
@@ -44,6 +47,7 @@ class _RegisterPageState extends State<RegisterPage> {
     primerApellidoCtrl.dispose();
     segundoApellidoCtrl.dispose();
     correoCtrl.dispose();
+    contrasenaCtrl.dispose();
     identificacionCtrl.dispose();
     telefonoCtrl.dispose();
     super.dispose();
@@ -87,88 +91,192 @@ class _RegisterPageState extends State<RegisterPage> {
 
   // -------- Validaciones ----------
   String? _noVacio(String? v, {required String campo}) {
-    if (v == null || v.trim().isEmpty) return '$campo es obligatorio';
-    return null;
-  }
+  if (v == null || v.trim().isEmpty) return '$campo es obligatorio';
+  return null;
+}
 
-  String? _correoUAO(String? v) {
-    final value = v?.trim() ?? '';
-    if (value.isEmpty) return 'Correo institucional es obligatorio';
-    final regex = RegExp(r'^[A-Za-z0-9._%+-]+@uao\.edu\.co$');
-    if (!regex.hasMatch(value)) return 'Debe terminar en @uao.edu.co';
-    return null;
-  }
+String? _correoUAO(String? v) {
+  final value = (v ?? '').trim();
+  if (value.isEmpty) return 'Correo institucional es obligatorio';
+  final regex = RegExp(r'^[A-Za-z0-9._%+-]+@uao\.edu\.co$');
+  if (!regex.hasMatch(value)) return 'El correo debe terminar en @uao.edu.co';
+  return null;
+}
 
-  String? _telefono(String? v) {
-    final value = v?.trim() ?? '';
-    if (value.isEmpty) return 'Número de teléfono es obligatorio';
-    if (value.length < 7) return 'Teléfono demasiado corto';
-    if (value.length > 15) return 'Teléfono demasiado largo';
-    return null;
-  }
+String? _contrasena(String? v) {
+  final value = (v ?? '').trim();
+  if (value.isEmpty) return 'La contraseña es obligatoria';
+  if (value.length < 6) return 'La contraseña debe tener al menos 6 caracteres';
+  return null;
+}
 
-  String? _identificacion(String? v) {
-    if (_tipoIdSeleccionado == null) return 'Selecciona el tipo de identificación';
-    if (v == null || v.trim().isEmpty) return 'Número de identificación es obligatorio';
-    return null;
-  }
+
+String? _telefono(String? v) {
+  final value = (v ?? '').trim();
+  if (value.isEmpty) return 'Número de teléfono es obligatorio';
+  if (value.length < 7) return 'Número de teléfono demasiado corto (mín. 7 dígitos)';
+  if (value.length > 15) return 'Número de teléfono demasiado largo (máx. 15 dígitos)';
+  return null;
+}
+
+String? _identificacion(String? v) {
+  if (_tipoIdSeleccionado == null) return 'Selecciona el tipo de identificación';
+  final value = (v ?? '').trim();
+  if (value.isEmpty) return 'Número de identificación es obligatorio';
+  if (value.length < 6) return 'Número de identificación demasiado corto (mín. 6 dígitos)';
+  // Límite máximo ya lo controla el LengthLimitingTextInputFormatter
+  return null;
+}
 
   InputDecoration _dec(
-    String label, {
-    IconData? icon,
-    String? hint,
-  }) {
-    return InputDecoration(
-      labelText: label,
-      hintText: hint,
-      prefixIcon: icon != null ? Icon(icon) : null,
-      filled: true,
-      fillColor: Colors.white,
-      isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Color(0xFFE6E6E6)),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Color(0xFFE6E6E6)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: kUAORed, width: 1.4),
-      ),
-    );
-  }
+  String label, {
+  IconData? icon,
+  String? hint,
+  bool compactError = true,
+}) {
+  return InputDecoration(
+    labelText: label,
+    hintText: hint,
+    prefixIcon: icon != null ? Icon(icon) : null,
+    filled: true,
+    fillColor: Colors.white,
+    isDense: true,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: const BorderSide(color: Color(0xFFE6E6E6)),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: const BorderSide(color: Color(0xFFE6E6E6)),
+    ),
+    focusedBorder: OutlineInputBorder( // ← asegúrate de tenerlo
+      borderRadius: BorderRadius.circular(16),
+      borderSide: const BorderSide(color: kUAORed, width: 1.4),
+    ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: const BorderSide(color: kUAORed),
+    ),
+    focusedErrorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: const BorderSide(color: kUAORed, width: 1.4),
+    ),
+    // Oculta texto y alto del error (solo borde rojo)
+    errorStyle: compactError ? const TextStyle(height: 0, fontSize: 0) : null,
+  );
+}
+
+
+
+List<String> _erroresDeFormulario() {
+  final errores = <String>[];
+
+  void add(String? e) { if (e != null && e.trim().isNotEmpty) errores.add(e); }
+
+  add(_noVacio(primerNombreCtrl.text, campo: 'Primer nombre'));
+  add(_noVacio(primerApellidoCtrl.text, campo: 'Primer apellido'));
+  add(_correoUAO(correoCtrl.text));
+  add(_contrasena(contrasenaCtrl.text));
+  add(_tipoIdSeleccionado == null ? 'Selecciona el tipo de identificación' : null);
+  add(_identificacion(identificacionCtrl.text));
+  add(_telefono(telefonoCtrl.text));
+
+  // Evita duplicados por si coinciden mensajes
+  return errores.toSet().toList();
+}
+
 
   Future<void> _guardar() async {
-    if (!_formKey.currentState!.validate()) return;
+  final esValido = _formKey.currentState!.validate();
 
-    setState(() => _saving = true);
+  if (!esValido) {
+    final faltan = _erroresDeFormulario();
+    if (faltan.isNotEmpty) {
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          backgroundColor: Colors.white, // Fondo consistente con el formulario
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+          contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
+          actionsPadding: const EdgeInsets.only(right: 12, bottom: 8),
+          
+          title: Row(
+            children: const [
+              Icon(Icons.error_outline, color: kUAORed, size: 26),
+              SizedBox(width: 8),
+              Text(
+                'Faltan datos',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                  color: kUAORed,
+                ),
+              ),
+            ],
+          ),
 
-    // Aquí harías el POST real
-    final payload = {
-      'primerNombre': primerNombreCtrl.text.trim(),
-      'segundoNombre': segundoNombreCtrl.text.trim(),
-      'primerApellido': primerApellidoCtrl.text.trim(),
-      'segundoApellido': segundoApellidoCtrl.text.trim(),
-      'correo': correoCtrl.text.trim(),
-      'tipoId': _tipoIdSeleccionado,
-      'numeroId': identificacionCtrl.text.trim(),
-      'telefono': telefonoCtrl.text.trim(),
-    };
-    // ignore: avoid_print
-    print(payload);
+          content: SingleChildScrollView(
+            child: Text(
+              'Por favor corrige o completa:\n\n• ${faltan.join('\n• ')}',
+              style: const TextStyle(
+                fontSize: 15,
+                height: 1.4,
+                color: Colors.black87,
+              ),
+            ),
+          ),
 
-    await Future.delayed(const Duration(milliseconds: 600)); // simula red
-    if (mounted) {
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registro enviado')),
+          actions: [
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+                backgroundColor: kUAORed,
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Entendido', style: TextStyle(fontSize: 15)),
+            ),
+          ],
+        ),
       );
-      Navigator.pop(context); // vuelve al login
     }
+
+    return;
   }
+
+  setState(() => _saving = true);
+
+  final payload = {
+    'primerNombre': primerNombreCtrl.text.trim(),
+    'segundoNombre': segundoNombreCtrl.text.trim(),
+    'primerApellido': primerApellidoCtrl.text.trim(),
+    'segundoApellido': segundoApellidoCtrl.text.trim(),
+    'correo': correoCtrl.text.trim(),
+    'contrasena': contrasenaCtrl.text.trim(), 
+    'tipoId': _tipoIdSeleccionado,
+    'numeroId': identificacionCtrl.text.trim(),
+    'telefono': telefonoCtrl.text.trim(),
+  };
+  // ignore: avoid_print
+  print(payload);
+
+  await Future.delayed(const Duration(milliseconds: 600));
+  if (!mounted) return;
+
+  setState(() => _saving = false);
+  Navigator.of(context).pushAndRemoveUntil(
+  MaterialPageRoute(builder: (_) => const LoginPage()),
+  (route) => false,
+);
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -331,6 +439,30 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                       const SizedBox(height: 12),
 
+                      TextFormField(
+                        controller: contrasenaCtrl,
+                        obscureText: !_verContrasena,
+                        decoration: _dec(
+                          'Contraseña *',
+                          icon: Icons.lock_outline,
+                        ).copyWith(
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _verContrasena ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                              color: Colors.grey[600],
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _verContrasena = !_verContrasena;
+                              });
+                            },
+                          ),
+                        ),
+                        textInputAction: TextInputAction.done,
+                        validator: _contrasena,
+                      ),
+                      const SizedBox(height: 12),
+
                       DropdownButtonFormField<String>(
                         value: _tipoIdSeleccionado,
                         isExpanded: true,
@@ -401,7 +533,11 @@ class _RegisterPageState extends State<RegisterPage> {
                             const Text('¿Ya tienes cuenta? ',
                                 style: TextStyle(color: Colors.black54, fontSize: 14)),
                             GestureDetector(
-                              onTap: () => Navigator.pop(context),
+                              onTap: () {
+                                Navigator.of(context).pushReplacement(
+                                  MaterialPageRoute(builder: (_) => const LoginPage()),
+                                );
+                              },
                               child: const Text(
                                 'Inicia sesión',
                                 style: TextStyle(

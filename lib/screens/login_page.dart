@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_cuposuao/screens/register_page.dart';
+import 'package:flutter_cuposuao/screens/select_rol_register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -33,7 +33,7 @@ class _LoginPageState extends State<LoginPage> {
   void _register() {
   Navigator.push(
     context,
-    MaterialPageRoute(builder: (context) => const RegisterPage()),
+    MaterialPageRoute(builder: (context) => const SelectRolRegisterPage()),
   );
 }
 
