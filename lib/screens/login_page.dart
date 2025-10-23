@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_cuposuao/screens/select_rol_register_page.dart';
+import 'package:flutter_cuposuao/screens/home_conductor_page.dart';
+
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -26,6 +28,11 @@ class _LoginPageState extends State<LoginPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Inicio de sesión exitoso')),
+      );
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const HomeConductorPage()),
       );
     }
   }
