@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_cuposuao/screens/select_rol_register_page.dart';
+import 'package:flutter_cuposuao/services/auth_services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -12,31 +14,67 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController userController = TextEditingController();
   final TextEditingController passController = TextEditingController();
+  final AuthService _authService = AuthService();
 
   bool _obscurePassword = true;
 
-  void _login() {
+  void _login() async {
     if (_formKey.currentState!.validate()) {
       final username = userController.text.trim();
       final email = '$username@uao.edu.co';
       final password = passController.text.trim();
 
-      print('Usuario: $email');
-      print('Contraseña: $password');
+      try {
+        final user = await _authService.signInWithEmailAndPassword(
+          email,
+          password,
+        );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Inicio de sesión exitoso')),
-      );
+        if (user != null) {
+          print('Usuario: $email');
+          print('Contraseña: $password');
+          print("Si manito, si entró");
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Inicio de sesión exitoso')),
+          );
+        }
+      } on FirebaseAuthException catch (e) {
+        String errorMessage;
+
+        switch (e.code) {
+          case 'user-not-found':
+            errorMessage = "El correo no está registrado.";
+            break;
+          case 'wrong-password':
+            errorMessage = "Contraseña incorrecta. Intenta de nuevo.";
+            break;
+          case 'user-disabled':
+            errorMessage = "Tu cuenta ha sido deshabilitada.";
+            break;
+          // ... otros casos
+          default:
+            errorMessage = "Error de inicio de sesión inesperado: ${e.code}";
+        }
+
+        // Llama a tu función para mostrar el error en un diálogo
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Hubo un error: $errorMessage')),
+          );
+      } catch (e) {
+        // Manejo de errores no relacionados con Firebase Auth (ej: red)
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Hubo un error: no se pudo conectar con el servidor')),
+          );
+      }
     }
   }
 
   void _register() {
-  Navigator.push(
-    context,
-    MaterialPageRoute(builder: (context) => const SelectRolRegisterPage()),
-  );
-}
-
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SelectRolRegisterPage()),
+    );
+  }
 
   void _loginWithGoogle() {
     // Aquí luego puedes integrar Google Sign-In
@@ -62,7 +100,7 @@ class _LoginPageState extends State<LoginPage> {
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    
+
                     letterSpacing: 1.2,
                   ),
                 ),
@@ -75,10 +113,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 20),
                 const Text(
                   'Acceso institucional UAO',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 30),
 

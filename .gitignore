@@ -43,3 +43,16 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Directorios de compilación de Flutter
+/build/
+
+# Directorios de compilación de Windows
+/windows/out/
+/windows/flutter/ephemeral/
+/windows/out/build/x64-Debug
+
+#Firebase related
+firebase-debug.log
+firebase_cpp_sdk_windows_12.7.0.zip
+windows/out/

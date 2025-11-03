@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "944188011459",
+    "project_id": "cuposuao",
+    "storage_bucket": "cuposuao.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:944188011459:android:bf8a718f1c1669dd3d8376",
+        "android_client_info": {
+          "package_name": "com.example.flutter_cuposuao"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAnKVvqPd2VHsMqAPF-aKe_3HmyvIGgjR8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
