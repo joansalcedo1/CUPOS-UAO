@@ -1,0 +1,67 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "E:\\Importantes\\UNIVERSIDAD\\ing. software\\Desarrollo de app\\flutter_cuposuao\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|E:\\Importantes\\UNIVERSIDAD\\ing. software\\Desarrollo de app\\flutter_cuposuao\\lib\\screens\\login_page.dart||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:lib\\screens\\login_page.dart||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|E:\\Importantes\\UNIVERSIDAD\\ing. software\\Desarrollo de app\\flutter_cuposuao\\lib\\screens\\conductor_register_page.dart||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:lib\\screens\\conductor_register_page.dart||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|P\u00E1ginas de informaci\u00F3n general de CMake||{B1CAA5B0-FEB1-4350-8AB9-F895876842F2}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "login_page.dart",
+              "DocumentMoniker": "E:\\Importantes\\UNIVERSIDAD\\ing. software\\Desarrollo de app\\flutter_cuposuao\\lib\\screens\\login_page.dart",
+              "RelativeDocumentMoniker": "lib\\screens\\login_page.dart",
+              "ToolTip": "E:\\Importantes\\UNIVERSIDAD\\ing. software\\Desarrollo de app\\flutter_cuposuao\\lib\\screens\\login_page.dart",
+              "RelativeToolTip": "lib\\screens\\login_page.dart",
+              "ViewState": "AQIAAD0AAAAAAAAAAADwvwAAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2025-11-03T22:14:51.312Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "conductor_register_page.dart",
+              "DocumentMoniker": "E:\\Importantes\\UNIVERSIDAD\\ing. software\\Desarrollo de app\\flutter_cuposuao\\lib\\screens\\conductor_register_page.dart",
+              "RelativeDocumentMoniker": "lib\\screens\\conductor_register_page.dart",
+              "ToolTip": "E:\\Importantes\\UNIVERSIDAD\\ing. software\\Desarrollo de app\\flutter_cuposuao\\lib\\screens\\conductor_register_page.dart",
+              "RelativeToolTip": "lib\\screens\\conductor_register_page.dart",
+              "ViewState": "AQIAAKIAAAAAAAAAAAAAAAoAAAAAAAAA",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2025-11-03T22:14:44.979Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "P\u00E1ginas de informaci\u00F3n general de CMake",
+              "DocumentMoniker": "P\u00E1ginas de informaci\u00F3n general de CMake",
+              "ToolTip": "P\u00E1ginas de informaci\u00F3n general de CMake",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2025-11-03T22:09:53.168Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
