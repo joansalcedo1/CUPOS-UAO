@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_cuposuao/screens/login_page.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 
 class ConductorRegisterPage extends StatefulWidget {
   const ConductorRegisterPage({super.key});
@@ -10,6 +14,7 @@ class ConductorRegisterPage extends StatefulWidget {
 }
 
 class _ConductorRegisterPageState extends State<ConductorRegisterPage> {
+
   // ======= NUEVO: 2 formularios / 2 páginas =======
   final _pageCtrl = PageController();
   int _page = 0;
@@ -33,7 +38,7 @@ class _ConductorRegisterPageState extends State<ConductorRegisterPage> {
 
   // Controladores (página 2)
   final TextEditingController placaCtrl = TextEditingController();
-  final TextEditingController modeloCtrl = TextEditingController(); // "Nissan March"
+  final TextEditingController modeloCtrl = TextEditingController();
   final TextEditingController colorCtrl = TextEditingController();
   final TextEditingController anioCtrl = TextEditingController();
 
@@ -48,7 +53,7 @@ class _ConductorRegisterPageState extends State<ConductorRegisterPage> {
   ];
   String? _tipoIdSeleccionado;
   bool _saving = false;
-  ImageProvider? _avatarImage; // avatar UI
+  ImageProvider? _avatarImage; 
   bool _verContrasena = false;
 
   // ===== NUEVO: Placeholders adjuntos (UI) =====
@@ -76,8 +81,17 @@ class _ConductorRegisterPageState extends State<ConductorRegisterPage> {
     _pageCtrl.dispose();
     super.dispose();
   }
+  
+  // Image & file pickers
+  // Nota: si tu entorno no tiene instalado el toolkit de Android Studio
+  // o no configuraste el SDK/permissions, las funciones de cámara/galería
+  // pueden no funcionar en el emulador o al construir para Android.
+  // Aquí solo habilitamos la UI para seleccionar; no subimos ni guardamos archivos.
+  final ImagePicker _picker = ImagePicker();
 
-  void _showEditPhotoSheet([String titulo = 'Editar foto']) {
+  /// Muestra el bottom sheet con acciones para elegir imagen o documento.
+  /// [tipo] identifica el campo destino: 'avatar','licencia','vehiculo','tarjeta','soat'
+  void _showEditPhotoSheet(String tipo, [String titulo = 'Editar foto']) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -96,14 +110,33 @@ class _ConductorRegisterPageState extends State<ConductorRegisterPage> {
                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 12),
-                const ListTile(
-                  leading: Icon(Icons.photo_library_outlined),
-                  title: Text('Elegir desde galería (próximamente)'),
-                ),
-                const ListTile(
-                  leading: Icon(Icons.photo_camera_outlined),
-                  title: Text('Tomar foto (próximamente)'),
-                ),
+                if (tipo == 'soat' || tipo == 'tarjeta' || tipo == 'licencia')
+                  ListTile(
+                    leading: const Icon(Icons.attach_file_outlined),
+                    title: const Text('Seleccionar archivo (PDF, imagen)'),
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await _pickDocument();
+                    },
+                  )
+                else ...[
+                  ListTile(
+                    leading: const Icon(Icons.photo_library_outlined),
+                    title: const Text('Elegir desde galería'),
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await _pickImage(ImageSource.gallery, tipo);
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.photo_camera_outlined),
+                    title: const Text('Tomar foto'),
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await _pickImage(ImageSource.camera, tipo);
+                    },
+                  ),
+                ],
                 const SizedBox(height: 6),
               ],
             ),
@@ -111,6 +144,59 @@ class _ConductorRegisterPageState extends State<ConductorRegisterPage> {
         );
       },
     );
+  }
+
+  /// Abre cámara o galería y guarda una vista previa en memoria (no persiste).
+  Future<void> _pickImage(ImageSource source, String tipo) async {
+    try {
+      final XFile? picked = await _picker.pickImage(
+        source: source,
+        maxWidth: 1600,
+        imageQuality: 85,
+      );
+      if (picked == null) return; // usuario canceló
+
+      final file = File(picked.path);
+      setState(() {
+        final img = FileImage(file);
+        if (tipo == 'avatar') {
+          _avatarImage = img;
+        } else if (tipo == 'licencia') {
+          licenciaImg = img;
+        } else if (tipo == 'vehiculo') {
+          vehiculoFrenteImg = img;
+        } else if (tipo == 'tarjeta') {
+          tarjetaPropImg = img;
+        }
+      });
+    } catch (e) {
+      // Muestra feedback simple
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error abriendo la cámara/galería: $e')),
+        );
+      }
+    }
+  }
+
+  /// Permite elegir un documento (SOAT). Guarda solo el nombre para UI.
+  Future<void> _pickDocument() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+      );
+      if (result == null) return; // canceló
+      setState(() {
+        soatFileName = result.files.single.name;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error seleccionando archivo: $e')),
+        );
+      }
+    }
   }
 
   // -------- Validaciones ----------
@@ -236,59 +322,112 @@ class _ConductorRegisterPageState extends State<ConductorRegisterPage> {
     return errores.toSet().toList();
   }
 
+  // ===== Errores del form (página 2) - solo campos texto/númricos =====
+  List<String> _erroresDeFormularioPage2() {
+    final errores = <String>[];
+    void add(String? e) { if (e != null && e.trim().isNotEmpty) errores.add(e); }
+
+    // Validaciones de la página 2 (placa, modelo, color, anio)
+    add(_placa(placaCtrl.text));
+    add(_modelo(modeloCtrl.text));
+    add(_color(colorCtrl.text));
+    add(_anio(anioCtrl.text));
+
+    return errores.toSet().toList();
+  }
+
+
   Future<void> _guardar() async {
-    // Valida ambas páginas antes de enviar
-    final ok1 = _formKeyPage1.currentState!.validate();
-    final ok2 = _formKeyPage2.currentState!.validate();
-    if (!ok1) {
-      // muestra diálogo como antes con los errores de la página 1
-      final faltan = _erroresDeFormularioPage1();
-      if (faltan.isNotEmpty) {
-        await showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-            contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
-            actionsPadding: const EdgeInsets.only(right: 12, bottom: 8),
-            title: Row(
-              children: const [
-                Icon(Icons.error_outline, color: kUAORed, size: 26),
-                SizedBox(width: 8),
-                Text('Faltan datos', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: kUAORed)),
-              ],
-            ),
-            content: SingleChildScrollView(
-              child: Text(
-                'Por favor corrige o completa:\n\n• ${faltan.join('\n• ')}',
-                style: const TextStyle(fontSize: 15, height: 1.4, color: Colors.black87),
-              ),
-            ),
-            actions: [
-              TextButton(
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  backgroundColor: kUAORed,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Entendido', style: TextStyle(fontSize: 15)),
-              ),
+  // Valida ambas páginas antes de enviar
+  // Use null-safe access: currentState puede ser null si el Form aún no está montado.
+  final ok1 = _formKeyPage1.currentState?.validate() ?? false;
+  final ok2 = _formKeyPage2.currentState?.validate() ?? false;
+  /*if (!ok1) {
+    final faltan = _erroresDeFormularioPage1();
+    if (faltan.isNotEmpty) {
+      await showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+          contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
+          actionsPadding: const EdgeInsets.only(right: 12, bottom: 8),
+          title: Row(
+            children: const [
+              Icon(Icons.error_outline, color: kUAORed, size: 26),
+              SizedBox(width: 8),
+              Text('Faltan datos', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: kUAORed)),
             ],
           ),
-        );
-      }
-      // navega a página 1
-      _goToPage(0);
-      return;
+          content: SingleChildScrollView(
+            child: Text(
+              'Por favor corrige o completa:\n\n• ${faltan.join('\n• ')}',
+              style: const TextStyle(fontSize: 15, height: 1.4, color: Colors.black87),
+            ),
+          ),
+          actions: [
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+                backgroundColor: kUAORed,
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Entendido', style: TextStyle(fontSize: 15)),
+            ),
+          ],
+        ),
+      );
     }
-    if (!ok2) {
-      // Si quieres, aquí podríamos construir un diálogo similar con los errores de la página 2.
-      _goToPage(1);
-      return;
+    // navega a página 1
+    _goToPage(1);
+    
+    return;
+  }*/
+  if (!ok2) {
+    final faltan = _erroresDeFormularioPage2();
+    if (faltan.isNotEmpty) {
+      await showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+          contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
+          actionsPadding: const EdgeInsets.only(right: 12, bottom: 8),
+          title: Row(
+            children: const [
+              Icon(Icons.error_outline, color: kUAORed, size: 26),
+              SizedBox(width: 8),
+              Text('Faltan datos', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: kUAORed)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Text(
+              'Por favor corrige o completa:\n\n• ${faltan.join('\n• ')}',
+              style: const TextStyle(fontSize: 15, height: 1.4, color: Colors.black87),
+            ),
+          ),
+          actions: [
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+                backgroundColor: kUAORed,
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Entendido', style: TextStyle(fontSize: 15)),
+            ),
+          ],
+        ),
+      );
     }
+    _goToPage(1);
+    return;
+  } else {
 
     setState(() => _saving = true);
 
@@ -325,6 +464,10 @@ class _ConductorRegisterPageState extends State<ConductorRegisterPage> {
       MaterialPageRoute(builder: (_) => const LoginPage()),
       (route) => false,
     );
+
+  }
+
+    
   }
 
   void _goToPage(int index) {
@@ -337,9 +480,8 @@ class _ConductorRegisterPageState extends State<ConductorRegisterPage> {
   }
 
   void _next() {
-    // valida página actual antes de avanzar
     if (_page == 0) {
-      final ok = _formKeyPage1.currentState!.validate();
+      final ok = _formKeyPage1.currentState?.validate() ?? false;
       if (!ok) {
         final faltan = _erroresDeFormularioPage1();
         if (faltan.isNotEmpty) {
@@ -431,7 +573,8 @@ class _ConductorRegisterPageState extends State<ConductorRegisterPage> {
                     const SizedBox(height: 12),
                     // Avatar editable (solo UI)
                     GestureDetector(
-                      onTap: () => _showEditPhotoSheet('Editar foto de perfil'),
+                      // Pasamos 'avatar' como tipo para que la función guarde la preview en _avatarImage
+                      onTap: () => _showEditPhotoSheet('avatar', 'Editar foto de perfil'),
                       child: Stack(
                         clipBehavior: Clip.none,
                         children: [
@@ -624,16 +767,16 @@ class _ConductorRegisterPageState extends State<ConductorRegisterPage> {
                                   // Adjuntos (UI)
                                   _AttachTile(
                                     title: 'Licencia de conducción',
-                                    subtitle: 'Adjuntar foto (próximamente)',
+                                    subtitle: 'Adjuntar tu licencia de conduccion en ambas caras',
                                     icon: Icons.credit_card,
-                                    onTap: () => _showEditPhotoSheet('Adjuntar licencia de conducción'),
+                                    onTap: () => _showEditPhotoSheet('licencia', 'Adjuntar licencia de conducción'),
                                   ),
                                   const SizedBox(height: 8),
                                   _AttachTile(
                                     title: 'Foto del vehículo (frente)',
                                     subtitle: 'Adjuntar foto (próximamente)',
                                     icon: Icons.directions_car,
-                                    onTap: () => _showEditPhotoSheet('Adjuntar foto del vehículo (frente)'),
+                                    onTap: () => _showEditPhotoSheet('vehiculo', 'Adjuntar foto del vehículo (frente)'),
                                   ),
                                   const SizedBox(height: 8),
                                   TextFormField(
@@ -674,14 +817,14 @@ class _ConductorRegisterPageState extends State<ConductorRegisterPage> {
                                     title: 'Tarjeta de propiedad',
                                     subtitle: 'Adjuntar foto (próximamente)',
                                     icon: Icons.assignment_ind_outlined,
-                                    onTap: () => _showEditPhotoSheet('Adjuntar tarjeta de propiedad'),
+                                    onTap: () => _showEditPhotoSheet('tarjeta', 'Adjuntar tarjeta de propiedad'),
                                   ),
                                   const SizedBox(height: 8),
                                   _AttachTile(
                                     title: 'SOAT',
                                     subtitle: 'Adjuntar archivo (próximamente)',
                                     icon: Icons.picture_as_pdf_outlined,
-                                    onTap: () => _showEditPhotoSheet('Adjuntar SOAT'),
+                                    onTap: () => _showEditPhotoSheet('soat', 'Adjuntar SOAT'),
                                   ),
                                   const SizedBox(height: 20),
                                 ],
@@ -796,12 +939,12 @@ class _AttachTile extends StatelessWidget {
   final VoidCallback onTap;
 
   const _AttachTile({
+    Key? key,
     required this.title,
     required this.subtitle,
     required this.icon,
     required this.onTap,
-    super.key,
-  });
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
