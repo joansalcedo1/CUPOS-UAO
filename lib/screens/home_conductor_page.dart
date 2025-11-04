@@ -1,4 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cuposuao/screens/create_trip_page.dart';
+import 'package:flutter_cuposuao/services/auth_services.dart';
+import 'package:flutter_cuposuao/services/firebase_services.dart';
 
 class HomeConductorPage extends StatefulWidget {
   const HomeConductorPage({super.key});
@@ -8,6 +13,42 @@ class HomeConductorPage extends StatefulWidget {
 }
 
 class _HomeConductorPageState extends State<HomeConductorPage> {
+  final AuthService _authService = AuthService();
+  final FirebaseServices _firebaseServices = FirebaseServices();
+  late Map<String, dynamic> userData = {};
+  late Map<String, dynamic> tripsData = {};
+
+
+//llama a la funcion fetchUserInfo para obtener el nombre del usuario
+  @override
+  void initState() {
+    super.initState();
+    checkUserRole();
+    checkTrips();
+  }
+
+  void checkUserRole() async {
+    // 1. Resolver el Future y guardar el resultado del Map en userData
+    final data = await _authService.fetchUserInfo();
+    if (data != null) {
+      print("User data fetched: $data");
+      setState(() {
+        userData = data;
+      });
+    }
+  }
+  void checkTrips() async {
+    // Aquí puedes implementar la lógica para verificar el estado de los viajes
+    final data = await _firebaseServices.fetchTrips();
+    if (data != null) {
+      print("Trips data fetched: $data");
+      setState(() {
+        tripsData = data as Map<String, dynamic>;
+      });
+      // Procesa los datos de los viajes según sea necesario
+    }
+  }
+
   // Colores principales de la aplicación, consistentes con register_page.dart
   static const kUAORed = Color(0xFFD61F14);
   static const kBG = Color(0xFFF6F7FB);
@@ -54,18 +95,14 @@ class _HomeConductorPageState extends State<HomeConductorPage> {
           // Saludo y nombre del usuario
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              Text(
+            children: [
+              const Text(
                 '¡Hola de nuevo!',
-                style: TextStyle(
-                  color: Colors.black54,
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: Colors.black54, fontSize: 14),
               ),
-              SizedBox(height: 2),
-              Text(
-                'Juan David', // Reemplazar con el nombre real del usuario
-                style: TextStyle(
+              const SizedBox(height: 2),
+              Text(userData['nombre'] ?? 'Cargando...',
+                style: const TextStyle(
                   color: Colors.black87,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -78,7 +115,11 @@ class _HomeConductorPageState extends State<HomeConductorPage> {
       actions: [
         // Icono de notificaciones
         IconButton(
-          icon: const Icon(Icons.notifications_outlined, color: Colors.black54, size: 28),
+          icon: const Icon(
+            Icons.notifications_outlined,
+            color: Colors.black54,
+            size: 28,
+          ),
           onPressed: () {
             // Lógica para mostrar notificaciones
           },
@@ -138,7 +179,7 @@ class _HomeConductorPageState extends State<HomeConductorPage> {
             color: Color(0x1A000000),
             blurRadius: 16,
             offset: Offset(0, 8),
-          )
+          ),
         ],
       ),
       child: Column(
@@ -155,10 +196,7 @@ class _HomeConductorPageState extends State<HomeConductorPage> {
           const SizedBox(height: 8),
           const Text(
             'Publica tu próximo viaje y encuentra pasajeros.',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.black54,
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.black54),
           ),
           const SizedBox(height: 20),
           // Botón para crear el viaje
@@ -166,6 +204,10 @@ class _HomeConductorPageState extends State<HomeConductorPage> {
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: () {
+                Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(builder: (_) => const CreateTripPage()),
+                        (route) => false,
+                      );
                 // Lógica para navegar a la pantalla de creación de viaje
               },
               style: ElevatedButton.styleFrom(
@@ -194,11 +236,7 @@ class _HomeConductorPageState extends State<HomeConductorPage> {
         padding: const EdgeInsets.symmetric(vertical: 40),
         child: Column(
           children: const [
-            Icon(
-              Icons.map_outlined,
-              size: 60,
-              color: Colors.grey,
-            ),
+            Icon(Icons.map_outlined, size: 60, color: Colors.grey),
             SizedBox(height: 12),
             Text(
               'Aún no tienes viajes',
@@ -212,10 +250,7 @@ class _HomeConductorPageState extends State<HomeConductorPage> {
             Text(
               'Tus viajes completados aparecerán aquí.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey),
             ),
           ],
         ),
@@ -233,10 +268,7 @@ class _HomeConductorPageState extends State<HomeConductorPage> {
       unselectedItemColor: Colors.grey[600],
       type: BottomNavigationBarType.fixed, // Mantiene el fondo blanco
       items: const <BottomNavigationBarItem>[
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home),
-          label: 'Inicio',
-        ),
+        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
         BottomNavigationBarItem(
           icon: Icon(Icons.drive_eta),
           label: 'Mis Viajes',

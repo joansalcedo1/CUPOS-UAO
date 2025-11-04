@@ -6,7 +6,6 @@ import 'package:flutter_cuposuao/screens/login_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_cuposuao/services/auth_services.dart';
 
-
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
 
@@ -290,7 +289,6 @@ class _RegisterPageState extends State<RegisterPage> {
     // ignore: avoid_print
     print(payload);*/
 
-
     String primerNombre = primerNombreCtrl.text.trim();
     String segundoNombre = segundoNombreCtrl.text.trim();
     String primerApellido = primerApellidoCtrl.text.trim();
@@ -300,27 +298,72 @@ class _RegisterPageState extends State<RegisterPage> {
     final tipoId = _tipoIdSeleccionado;
     String numeroId = identificacionCtrl.text.trim();
     String telefono = telefonoCtrl.text.trim();
-
     String rol = "pasajero";
-    String fullName =
-        "$primerNombre $segundoNombre $primerApellido $segundoApellido";
 
     try {
       final user = await _authService.registerWithEmailAndPassword(
         correo,
         contrasena,
-        fullName,
-        tipoId,
+        primerNombre,
+        segundoNombre,
+        primerApellido,
+        segundoApellido,
+        tipoId!,
         numeroId,
         telefono,
         rol,
+        null,
+        null,
+        null,
+        null,
       );
 
       if (user != null) {
-        ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Cuenta creada con exito :)")));
+        showDialog(
+          context: context,
+          barrierDismissible: false,
 
+          builder: (BuildContext context) {
+            return AlertDialog(
+              // Título
+              title: const Text(
+                'Confirmar correo electrónico',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              content: const Text(
+                'Se ha enviado un enlace para confirmar tu correo electrónico a tu cuenta institucional.',
+                style: TextStyle(fontSize: 16),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    if (mounted) {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(builder: (_) => const LoginPage()),
+                        (route) => false,
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFFD61F14),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                      horizontal: 24,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    'Aceptar',
+                    style: TextStyle(fontSize: 16, color: Colors.white),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
       }
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
@@ -338,7 +381,7 @@ class _RegisterPageState extends State<RegisterPage> {
         errorMessage = 'Ocurrió un error al registrar: ${e.message}';
       }
 
-      // Forma propia de flutter para mostrar errores 
+      // Forma propia de flutter para mostrar errores
       /*FlutterError.onError = (details) {
         FlutterError.presentError(details);
         if (kReleaseMode) exit(1);
@@ -346,13 +389,11 @@ class _RegisterPageState extends State<RegisterPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(errorMessage)));
-      print(
-        errorMessage
-      );
+      print(errorMessage);
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar( SnackBar(content: Text('Hubo un fallo general creando el usuario')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Hubo un fallo general creando el usuario')),
+      );
       if (!mounted) return;
     }
 
@@ -360,10 +401,6 @@ class _RegisterPageState extends State<RegisterPage> {
     if (!mounted) return;
 
     setState(() => _saving = false);
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginPage()),
-      (route) => false,
-    );
   }
 
   @override
