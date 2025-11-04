@@ -4,6 +4,12 @@ import 'package:flutter/material.dart';
 
 /// Color principal de la aplicación (UAO Red)
 const Color kUAORed = Color(0xFFD61F14);
+
+const Color kUAORedDark = Color.fromRGBO(138, 20, 40, 1);
+
+const Color kUAORedDark02 = Color.fromARGB(255, 172, 11, 51);
+
+const Color kUAOOrange = Color.fromARGB(255, 255, 130, 108);
 /// Color de fondo principal de la aplicación
 const Color kBG = Color(0xFFF6F7FB);
 /// Color de texto para títulos principales
@@ -25,25 +31,49 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // Estado para manejar la selección del menú inferior
+  // --- Estado General de la UI ---
   int _selectedIndex = 0; // 'Viajes' es el índice 0
-  DateTime? _selectedDateTime; // Variable para almacenar la fecha y hora seleccionada
-  String? _selectedPassengers; // Variable para almacenar el número de pasajeros seleccionados
 
-  String get _dateTimeText {
-    if (_selectedDateTime == null) {
-      return 'Seleccionar fecha y hora';
-    }
-    final months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Agosto', 'Sep', 'Oct', 'Nov', 'Dic'];
-    final monthName = months[_selectedDateTime!.month - 1];
-    return '${_selectedDateTime!.day} de $monthName - ${_selectedDateTime!.hour}:${_selectedDateTime!.minute.toString().padLeft(2, '0')}';
+  // --- Estado para la tarjeta "Nuevo Cupo" ---
+  DateTime? _selectedDateTime;
+  String? _selectedPassengers;
+
+  // --- Estado para la tarjeta "Nueva Ruta" ---
+  bool _isCrearRutaVisible = false; // Controla qué tarjeta se muestra
+  bool _isIdaYVuelta = false;
+  String? _selectedZona;
+  String? _selectedPunto;
+  late TextEditingController _destinoController;
+
+  @override
+  void initState() {
+    super.initState();
+    _destinoController = TextEditingController();
   }
 
+  @override
+  void dispose() {
+    _destinoController.dispose();
+    super.dispose();
+  }
+
+  /// Manejador para la barra de navegación inferior
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
     });
     // Aquí se puede agregar lógica de navegación si es necesario
+  }
+
+  /// Getter para el texto de fecha y hora
+  String get _dateTimeText {
+    if (_selectedDateTime == null) {
+      return 'Seleccionar fecha y hora';
+    }
+    // Simple formato de ejemplo
+    final hour = _selectedDateTime!.hour.toString().padLeft(2, '0');
+    final minute = _selectedDateTime!.minute.toString().padLeft(2, '0');
+    return '${_selectedDateTime!.day}/${_selectedDateTime!.month} - $hour:$minute';
   }
 
   @override
@@ -152,11 +182,25 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           const SizedBox(height: 24),
+
           // Tarjeta para crear un nuevo "cupo" (viaje)
-          _buildCrearCupoCard(),
+           // --- Lógica de Tarjetas Colapsables ---
+          // AnimatedCrossFade permite una transición suave entre las dos tarjetas.
+          AnimatedCrossFade(
+            // `firstChild` es la tarjeta "Nuevo Cupo"
+            firstChild: _buildCrearCupoCard(),
+            // `secondChild` es la nueva tarjeta "Nueva Ruta"
+            secondChild: _buildCrearRutaCard(),
+            // El estado `_isCrearRutaVisible` decide cuál mostrar
+            crossFadeState: _isCrearRutaVisible
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 300),
+          ),
+          // --- Fin de la lógica ---
           const SizedBox(height: 24),
           // Botón para crear nueva ruta
-          _buildNuevaRutaButton(),
+          _buildToggleRutaButton(),
           const SizedBox(height: 24),
           // Título de la sección de historial
           const Text(
@@ -233,7 +277,7 @@ class _HomePageState extends State<HomePage> {
                 onTap: () async {
                   final DateTime? date = await showDatePicker(
                     context: context,
-                    initialDate: DateTime.now(),
+                    initialDate: _selectedDateTime ?? DateTime.now(),
                     firstDate: DateTime.now(),
                     lastDate: DateTime.now().add(const Duration(days: 1)),
                   );
@@ -341,12 +385,13 @@ class _HomePageState extends State<HomePage> {
     required String label,
     bool hasDropdown = false,
     bool isPrimary = true,
+    VoidCallback? onTap,
   }) {
-    return Container(
+    return InkWell(
+      onTap: onTap,
+      child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        // El color primario (gris claro) es para los chips principales,
-        // el secundario (borde) es para los chips más pequeños (Día/Hora).
         color: isPrimary ? kBG : Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: isPrimary ? null : Border.all(color: kBorderColor),
@@ -377,30 +422,280 @@ class _HomePageState extends State<HomePage> {
           ],
         ],
       ),
+    ),
     );
   }
 
-  /// Construye el botón secundario para "Crear nueva ruta".
-  Widget _buildNuevaRutaButton() {
+  /// Construye la tarjeta para "Nueva Ruta" (Tarjeta "Negativa"/Oscura)
+  Widget _buildCrearRutaCard() {
+    // --- "Negative" Design Colors ---
+    const Color kNegativeBG = kTextTitle; // Fondo oscuro
+    const Color kNegativeText = Colors.white;
+    const Color kNegativeTextSlightFade = Color(0xFFE0E0E0);
+    const Color kNegativeChipBG = Color(0xFF4A4A4A); // Gris oscuro para chips
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: kUAORedDark02, // Fondo oscuro
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: const [ // Sombra estándar
+          BoxShadow(
+            color: Color(0x1A000000),
+            blurRadius: 16,
+            offset: Offset(0, 8),
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Nueva Ruta',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: kNegativeText, // Texto blanco
+              fontFamily: 'Inter',
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // 1. Zona a la que te diriges (Popup)
+          PopupMenuButton<String>(
+            child: _buildNegativeSelectChip(
+              icon: Icons.map_outlined, // Icono del PDF
+              label: _selectedZona ?? 'Zona a la que te diriges',
+              hasDropdown: true,
+            ),
+            itemBuilder: (context) => ['Norte', 'Sur-Centro', 'Sur', 'Oriente', 'Oeste']
+                .map((zona) => PopupMenuItem<String>(
+                      value: zona,
+                      child: Text(zona),
+                    ))
+                .toList(),
+            onSelected: (value) {
+              setState(() {
+                _selectedZona = value;
+              });
+            },
+          ),
+          const SizedBox(height: 16),
+
+          // 2. Lugar de destino (Text Input)
+          _buildNegativeTextField(
+            controller: _destinoController,
+            icon: Icons.home_outlined, // Icono del PDF
+            hintText: 'Lugar de destino',
+          ),
+          const SizedBox(height: 16),
+
+          // 3. Puntos a los que te diriges (Popup)
+          PopupMenuButton<String>(
+            child: _buildNegativeSelectChip(
+              icon: Icons.route_outlined, // Icono del PDF
+              label: _selectedPunto ?? 'Puntos a los que te diriges',
+              hasDropdown: true,
+            ),
+            itemBuilder: (context) => ['Punto A', 'Punto B', 'Crear nuevo...'] // Ejemplo
+                .map((punto) => PopupMenuItem<String>(
+                      value: punto,
+                      child: Text(punto),
+                    ))
+                .toList(),
+            onSelected: (value) {
+              // TODO: Si es "Crear nuevo...", mostrar otro diálogo
+              setState(() {
+                _selectedPunto = value;
+              });
+            },
+          ),
+          const SizedBox(height: 16),
+
+          // 4. Marcar ruta como ida y vuelta (Checkbox)
+          _buildNegativeCheckbox(
+            label: 'Marcar ruta como ida y vuelta',
+            value: _isIdaYVuelta,
+            onChanged: (bool? newValue) {
+              setState(() {
+                _isIdaYVuelta = newValue ?? false;
+              });
+            },
+          ),
+          const SizedBox(height: 24),
+
+          // 5. Map Placeholder
+          Container(
+            height: 150,
+            decoration: BoxDecoration(
+              color: kUAORedDark,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Center(
+              child: Icon(Icons.map, color: kNegativeTextSlightFade, size: 50),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // 6. Botón "+ Crear Ruta"
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                // TODO: Lógica para crear RUTA
+                // Aquí se usaría _selectedZona, _destinoController.text,
+                // _selectedPunto, _isIdaYVuelta y la info del mapa.
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white, // Botón blanco
+                foregroundColor: kUAORedDark, // Texto e icono rojos
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+              ),
+              icon: const Icon(Icons.add),
+              label: const Text(
+                'Crear Ruta',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontFamily: 'Inter',
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+Widget _buildNegativeSelectChip({
+    required IconData icon,
+    required String label,
+    bool hasDropdown = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        color: kBG,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: kTextTitle, size: 20),
+          const SizedBox(width: 12),
+          Text(
+            label,
+            style: const TextStyle(
+              color: kTextTitle,
+              fontSize: 14,
+              fontFamily: 'Inter',
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const Spacer(),
+          if (hasDropdown)
+            const Icon(
+              Icons.keyboard_arrow_down,
+              color: kTextTitle,
+              size: 20,
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Widget auxiliar para el campo de texto (Tarjeta Oscura).
+  Widget _buildNegativeTextField({
+    required TextEditingController controller,
+    required IconData icon,
+    required String hintText,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: kBG,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: TextField(
+        controller: controller,
+        style: const TextStyle(color: Colors.white), // Texto que escribe el usuario
+        decoration: InputDecoration(
+          icon: Icon(icon, color: kTextTitle, size: 20),
+          border: InputBorder.none,
+          hintText: hintText,
+          hintStyle: const TextStyle(
+            color: kTextTitle,
+            fontSize: 14,
+            fontFamily: 'Inter',
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Widget auxiliar para el Checkbox (Tarjeta Oscura).
+  Widget _buildNegativeCheckbox({
+    required String label,
+    required bool value,
+    required ValueChanged<bool?> onChanged,
+  }) {
+    return Row(
+      children: [
+        Theme(
+          data: Theme.of(context).copyWith(
+            unselectedWidgetColor: kUAOOrange, // Color del borde
+          ),
+          child: Checkbox(
+            value: value,
+            onChanged: onChanged,
+            activeColor: kUAOOrange, // Color de la marca
+            checkColor: Colors.white, // Color del check
+            
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            color: kBG,
+            fontSize: 14,
+            fontFamily: 'Inter',
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+
+  /// Construye el botón secundario que alterna las tarjetas.
+  Widget _buildToggleRutaButton() {
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
         onPressed: () {
-          // Lógica para crear una nueva ruta
+          // Lógica para alternar las tarjetas
+          setState(() {
+            _isCrearRutaVisible = !_isCrearRutaVisible;
+          });
         },
         style: OutlinedButton.styleFrom(
           foregroundColor: kUAORed, // Color del texto y el icono
-          side: const BorderSide(color: kUAORed, width: 1.2), // Borde
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          side: const BorderSide(color: kUAORed, width: 1.5), // Borde
+          padding: const EdgeInsets.symmetric(vertical: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
         ),
-        icon: const Icon(Icons.add, size: 20),
-        label: const Text(
-          'Crea una nueva ruta',
-          style: TextStyle(
-            fontSize: 16,
+        // El icono y el texto cambian según el estado
+        icon: Icon(_isCrearRutaVisible ? Icons.directions_car_outlined : Icons.add, size: 20),
+        label: Text(
+          _isCrearRutaVisible ? 'Crear un "Nuevo Cupo"' : 'Crea una nueva ruta',
+          style: const TextStyle(
+            fontSize: 14,
             fontFamily: 'Inter',
             fontWeight: FontWeight.w600,
           ),
@@ -408,6 +703,7 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+
 
   /// Construye un placeholder para mostrar cuando no hay historial de viajes.
   /// Se reutiliza el estilo de `home_conductor_page.dart` pero con el
