@@ -186,6 +186,8 @@ class _HomePageState extends State<HomePage> {
           // Tarjeta para crear un nuevo "cupo" (viaje)
            // --- Lógica de Tarjetas Colapsables ---
           // AnimatedCrossFade permite una transición suave entre las dos tarjetas.
+          
+
           AnimatedCrossFade(
             // `firstChild` es la tarjeta "Nuevo Cupo"
             firstChild: _buildCrearCupoCard(),
@@ -196,12 +198,16 @@ class _HomePageState extends State<HomePage> {
                 ? CrossFadeState.showSecond
                 : CrossFadeState.showFirst,
             duration: const Duration(milliseconds: 300),
+
+            firstCurve: Curves.easeInOut,
+            secondCurve: Curves.easeInOut,
           ),
           // --- Fin de la lógica ---
           const SizedBox(height: 24),
           // Botón para crear nueva ruta
           _buildToggleRutaButton(),
           const SizedBox(height: 24),
+
           // Título de la sección de historial
           const Text(
             'Historial',
@@ -223,20 +229,30 @@ class _HomePageState extends State<HomePage> {
   /// Construye la tarjeta para "Nuevo Cupo", manteniendo la estructura
   /// del wireframe pero con el estilo del sistema de diseño.
   Widget _buildCrearCupoCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20), // Padding estándar
-      decoration: BoxDecoration(
-        color: Colors.white, // Fondo blanco para tarjetas
-        borderRadius: BorderRadius.circular(24), // Bordes redondeados estándar
-        boxShadow: const [ // Sombra estándar
-          BoxShadow(
-            color: Color(0x1A000000),
-            blurRadius: 16,
-            offset: Offset(0, 8),
-          )
-        ],
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          // La sombra que queremos ver
+          boxShadow: [
+    BoxShadow(
+      color: Color.fromRGBO(0, 0, 0, 0.1),
+      blurRadius: 6,
+      spreadRadius: 0,
+      offset: Offset(0, 3),
+    ),
+    BoxShadow(
+      color: Color.fromRGBO(0, 0, 0, 0.1),
+      blurRadius: 6,
+      spreadRadius: 0,
+      offset: Offset(0, 3),
+    )
+  ]
+        ),
+      
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -376,7 +392,9 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
+      ),
     );
+
   }
 
   /// Widget auxiliar para los chips de selección dentro de la tarjeta.
@@ -440,11 +458,18 @@ class _HomePageState extends State<HomePage> {
       decoration: BoxDecoration(
         color: kUAORedDark02, // Fondo oscuro
         borderRadius: BorderRadius.circular(24),
-        boxShadow: const [ // Sombra estándar
+        boxShadow: [
           BoxShadow(
-            color: Color(0x1A000000),
-            blurRadius: 16,
-            offset: Offset(0, 8),
+            color: Color.fromRGBO(60, 64, 67, 0.2),
+            blurRadius: 5,
+            spreadRadius: 0,
+            offset: Offset(0, 1),
+          ),
+          BoxShadow(
+            color: Color.fromRGBO(60, 64, 67, 0.1),
+            blurRadius: 6,
+            spreadRadius: 2,
+            offset: Offset(0, 2),
           )
         ],
       ),
