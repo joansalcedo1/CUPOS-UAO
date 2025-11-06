@@ -47,7 +47,7 @@ class _CreateTripPageState extends State<CreateTripPage> {
         );
         // Redirigir o volver a la pantalla anterior
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const HomeConductorPage()),
+          MaterialPageRoute(builder: (_) => const HomePage()),
           (route) => false,
         );
       }
