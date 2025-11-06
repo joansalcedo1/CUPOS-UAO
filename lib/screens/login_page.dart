@@ -32,9 +32,9 @@ class _LoginPageState extends State<LoginPage> {
           password,
         );
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Inicio de sesión exitoso')),
-        );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Inicio de sesión exitoso')),
+      );
 
         if (user != null) {
           print('Usuario: $email');
@@ -43,11 +43,11 @@ class _LoginPageState extends State<LoginPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Inicio de sesión exitoso')),
           );
-
+          
           Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeConductorPage()),
-          );
+        context,
+        MaterialPageRoute(builder: (context) => const HomePage()),
+      );
         }
       } on FirebaseAuthException catch (e) {
         String errorMessage;
@@ -68,16 +68,14 @@ class _LoginPageState extends State<LoginPage> {
         }
 
         // Llama a tu función para mostrar el error en un diálogo
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$errorMessage')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Hubo un error: $errorMessage')),
+          );
       } catch (e) {
         // Manejo de errores no relacionados con Firebase Auth (ej: red)
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Hubo un error: no se pudo conectar con el servidor'),
-          ),
-        );
+            SnackBar(content: Text('Hubo un error: no se pudo conectar con el servidor')),
+          );
       }
     }
   }
