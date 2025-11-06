@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_cuposuao/screens/select_rol_register_page.dart';
 import 'package:flutter_cuposuao/screens/home_conductor_page.dart';
-
+import 'package:flutter_cuposuao/screens/home_pasajero_page.dart';
 import 'package:flutter_cuposuao/services/auth_services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter_cuposuao/services/session_provider.dart';
+
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -21,64 +24,74 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePassword = true;
 
   void _login() async {
-    if (_formKey.currentState!.validate()) {
-      final username = userController.text.trim();
-      final email = '$username@uao.edu.co';
-      final password = passController.text.trim();
+  if (!_formKey.currentState!.validate()) return;
 
-      try {
-        final user = await _authService.signInWithEmailAndPassword(
-          email,
-          password,
-        );
+  final username = userController.text.trim();
+  final email = '$username@uao.edu.co';
+  final password = passController.text.trim();
 
+  try {
+    // 1) Autenticar
+    final user = await _authService.signInWithEmailAndPassword(email, password);
+    if (user == null) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Inicio de sesión exitoso')),
+        const SnackBar(content: Text('No se pudo iniciar sesión')),
       );
-
-        if (user != null) {
-          print('Usuario: $email');
-          print('Contraseña: $password');
-          print("Si manito, si entró");
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Inicio de sesión exitoso')),
-          );
-          
-          Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const HomePage()),
-      );
-        }
-      } on FirebaseAuthException catch (e) {
-        String errorMessage;
-
-        switch (e.code) {
-          case 'user-not-found':
-            errorMessage = "El correo no está registrado.";
-            break;
-          case 'wrong-password':
-            errorMessage = "Contraseña incorrecta. Intenta de nuevo.";
-            break;
-          case 'user-disabled':
-            errorMessage = "Tu cuenta ha sido deshabilitada.";
-            break;
-          // ... otros casos
-          default:
-            errorMessage = "Error de inicio de sesión inesperado: ${e.code}";
-        }
-
-        // Llama a tu función para mostrar el error en un diálogo
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Hubo un error: $errorMessage')),
-          );
-      } catch (e) {
-        // Manejo de errores no relacionados con Firebase Auth (ej: red)
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Hubo un error: no se pudo conectar con el servidor')),
-          );
-      }
+      return;
     }
+
+    // 2) Cargar perfil en el Provider
+    final session = context.read<SessionProvider>();
+    await session.loadCurrentUser();
+
+    // 3) Navegar por rol
+    final role = session.current?.role ?? 'pasajero';
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Inicio de sesión exitoso')),
+    );
+
+    if (role == 'conductor') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomePage()),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomePasajeroPage()),
+      );
+    }
+  } on FirebaseAuthException catch (e) {
+    String errorMessage;
+    switch (e.code) {
+      case 'user-not-found':
+        errorMessage = "El correo no está registrado.";
+        break;
+      case 'wrong-password':
+        errorMessage = "Contraseña incorrecta. Intenta de nuevo.";
+        break;
+      case 'user-disabled':
+        errorMessage = "Tu cuenta ha sido deshabilitada.";
+        break;
+      default:
+        errorMessage = "Error de inicio de sesión: ${e.code}";
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(errorMessage)),
+    );
+  } catch (_) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Hubo un error: no se pudo conectar con el servidor')),
+    );
   }
+}
+
+
 
   void _register() {
     Navigator.push(

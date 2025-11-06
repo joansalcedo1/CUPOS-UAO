@@ -123,7 +123,8 @@ class AuthService {
   }
 
   Future<Map<String, dynamic>?> fetchUserInfo() async {
-    String? uid = _auth.currentUser?.uid;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return null;
     final doc = await _db.collection('usuarios').doc(uid).get();
     if (doc.exists) {
       return doc.data()!;
@@ -135,3 +136,5 @@ class AuthService {
 
   // ... (Puedes agregar aquí signInWithEmailAndPassword, signOut, etc.)
 }
+
+
