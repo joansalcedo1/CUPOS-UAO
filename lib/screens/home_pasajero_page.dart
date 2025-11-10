@@ -1,4 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cuposuao/services/firebase_services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_cuposuao/services/session_provider.dart';
 
@@ -31,6 +33,7 @@ class HomePasajeroPage extends StatefulWidget {
 
 class _HomePasajeroPageState extends State<HomePasajeroPage> {
   // Simula nombre de usuario (traer de tu auth/estado)
+  final FirebaseServices _firebaseServices = FirebaseServices();
   
   PreferredSizeWidget _buildAppBar() {
     final user = context.watch<SessionProvider>().current;
@@ -98,7 +101,7 @@ class _HomePasajeroPageState extends State<HomePasajeroPage> {
   
 
   // --- Mock data (conéctalo a tu backend) ---
-  final List<Trip> _allTrips = [
+  List<Trip?> _allTrips = [
     Trip(
       id: 'T-001',
       driverName: 'Laura G.',
@@ -174,10 +177,67 @@ class _HomePasajeroPageState extends State<HomePasajeroPage> {
 
   Future<void> fetchTrips() async {
     setState(() => _loading = true);
-    await Future.delayed(const Duration(milliseconds: 600));
+
+    try {
+      // 1. Llama a tu nueva función de servicio
+      final snapshot = await _firebaseServices.fetchTrips();
+
+      // 2. Convierte los documentos de Firebase a tu modelo 'Trip'
+      final List<Trip?> tripsFromDB = snapshot.docs.map((doc) {
+        final dataObject = doc.data();
+        
+        if(dataObject==null){
+          return null;
+        }
+        // Obtiene los datos del documento y fuerza el tipo no-nullable
+        final data = dataObject as Map<String, dynamic>;
+
+        // 3. Mapea los campos (¡cuidado con los nulos y tipos!)
+        return Trip(
+          id: doc.id, // Usa el ID del documento
+          driverName: data['id'] as String? ?? 'Conductor',
+          origin: data['origen'] as String? ?? 'Origen desconocido',
+          destination: data['destino'] as String? ?? 'Destino desconocido',
+          
+          // ¡Importante! Firebase guarda Timestamp, tu modelo usa DateTime
+          dateTime: (data['horaSalida'] as Timestamp?)?.toDate() ?? DateTime.now(), 
+          
+          price: (data['price'] as num?)?.toInt() ?? 0,
+          seatsAvailable: (data['cantidad_Pasajeros'] as num?)?.toInt() ?? 0,
+          allowsLuggage: data['allowsLuggage'] as bool? ?? true,
+          rating: (data['rating'] as num?)?.toDouble() ?? 4.0, // Maneja números
+          vehicle: data['vehicle'] as String? ?? 'Vehículo',
+        );
+      }).toList(); // Convierte todo a una Lista
+
+      // 4. Actualiza el estado con los datos REALES
+      setState(() {
+        _loading = false;
+        _allTrips = tripsFromDB;
+        // _filtered = List.of(_allTrips); // 'applyFilters' se encargará de esto
+      });
+
+    } catch (e) {
+      print("Error al cargar viajes: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar los viajes: $e'),
+            backgroundColor: kUAORed,
+          ),
+        );
+      }
+      setState(() {
+        _loading = false;
+        _allTrips = []; // En caso de error, deja la lista vacía
+      });
+    }
+    
+    //await Future.delayed(const Duration(milliseconds: 600));
+    
     setState(() {
       _loading = false;
-      _filtered = List.of(_allTrips);
+      _filtered = List.of(_allTrips as Iterable<Trip>);
     });
   }
 
@@ -191,7 +251,7 @@ class _HomePasajeroPageState extends State<HomePasajeroPage> {
         a.year == b.year && a.month == b.month && a.day == b.day;
 
     setState(() {
-      _filtered = _allTrips.where((t) {
+      _filtered = _allTrips.whereType<Trip>().where((t) {
         final okOrigin =
             origin.isEmpty || t.origin.toLowerCase().contains(origin);
         final okDest =

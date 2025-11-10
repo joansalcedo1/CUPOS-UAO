@@ -355,16 +355,19 @@ class _HomePageState extends State<HomePage> {
       capacidad: capacidad, // Guarda el entero
       listaPasajeros: initialPasajeros, // Guarda la lista inicial
     );
-
+    final user = context.read<SessionProvider>().current;
     try {
       final cupoBD = await firebaseServices.createTrip(
         nuevoCupo.fechaHora,
         nuevoCupo.capacidad,
         nuevoCupo.ruta.nombreMostrado,
+        _selectedRuta!.zona,
+        _selectedRuta!.destino,
         _estadoViaje.toString(),
+        user!.vehicle,
       );
       if (cupoBD == null) {
-        return null;
+        return;
       } else {
         print('Cupo confirmado con ID: $cupoBD');
         setState(() {
@@ -474,6 +477,7 @@ class _HomePageState extends State<HomePage> {
   PreferredSizeWidget _buildAppBar() {
     final user = context.watch<SessionProvider>().current;
     final firstName = user?.firstName ?? 'Usuario';
+   
     return AppBar(
       leadingWidth: 72,
       backgroundColor: kBG,

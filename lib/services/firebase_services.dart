@@ -48,7 +48,7 @@ class FirebaseServices {
     return rutaId;
   }
 
-  Future<String?> createTrip(DateTime horaSalida,int cantPasajeros,String ruta,String estado) async {
+  Future<String?> createTrip(DateTime horaSalida,int cantPasajeros,String ruta, String origen, String destino, String estado, String vehiculo) async {
     // 1. Obtener la referencia del nuevo documento (esto genera el ID)
     final docRef = _db.collection('viajes').doc();
 
@@ -61,9 +61,11 @@ class FirebaseServices {
         'horaSalida': horaSalida,
         'cantidad_Pasajeros': cantPasajeros,
         'ruta': ruta,
+        'Origen': origen,
+        'destino': destino,
         'horaCreacion': DateTime.now(),
         'estado': estado, //manejar 3 estados: confirmado, en curso, completado
-        'hora_creacion': DateTime.timestamp()
+        'vehiculo': vehiculo
       });
     } catch (e) {
       throw Exception('Error al crear el viaje desde el catch de services: $e');
