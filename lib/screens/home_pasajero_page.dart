@@ -135,6 +135,18 @@ class _HomePasajeroPageState extends State<HomePasajeroPage> {
       rating: 4.9,
       vehicle: 'Mazda 3',
     ),
+    Trip(
+      id: 'T-003',
+      driverName: 'Joan S.',
+      origin: 'Vallegrande',
+      destination: 'Autonoma de occidente',
+      dateTime: DateTime.now().add(const Duration(days: 1, hours: 2)),
+      price: 10000,
+      seatsAvailable: 4,
+      allowsLuggage: true,
+      rating: 4.9,
+      vehicle: 'Nissan kicks',
+    ),
   ];
 
   // --- UI State ---

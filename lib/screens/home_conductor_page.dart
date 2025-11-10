@@ -1,9 +1,13 @@
 //Imports
 
 import 'package:flutter/material.dart';
+import 'package:flutter_cuposuao/services/auth_services.dart';
+import 'package:flutter_cuposuao/services/firebase_services.dart';
+import 'package:flutter_cuposuao/services/session_provider.dart';
 import 'package:lottie/lottie.dart'; // Librería para animaciones Lottie
 import 'package:loading_animation_widget/loading_animation_widget.dart'; // Librería para animaciones de carga
-import 'package:animated_text_kit/animated_text_kit.dart'; // Librería para animaciones de texto
+import 'package:animated_text_kit/animated_text_kit.dart';
+import 'package:provider/provider.dart'; // Librería para animaciones de texto
 
 // ------ Modelo de Datos para Rutas ------
 // Representa una ruta creada por el conductor.
@@ -13,7 +17,12 @@ class Ruta {
   final Set<String> puntos;
   final bool esIdaYVuelta;
 
-  Ruta({required this.zona, required this.destino, required this.puntos, required this.esIdaYVuelta,});
+  Ruta({
+    required this.zona,
+    required this.destino,
+    required this.puntos,
+    required this.esIdaYVuelta,
+  });
   String get nombreMostrado => '$zona - $destino';
 
   // Devuelve una cadena con los puntos de recogida, para la tarjeta de cupo activo.
@@ -30,36 +39,31 @@ class Cupo {
   final Ruta ruta;
   final DateTime fechaHora;
   final String pasajeros;
-  final int capacidad; 
+  final int capacidad;
   final List<Pasajero> listaPasajeros; // La nueva lista
 
-  Cupo({required this.ruta, required this.fechaHora, required this.pasajeros, required this.capacidad, required this.listaPasajeros,});
+  Cupo({
+    required this.ruta,
+    required this.fechaHora,
+    required this.pasajeros,
+    required this.capacidad,
+    required this.listaPasajeros,
+  });
 }
 
 // Define el estado de un pasajero en un cupo.
-enum PasajeroEstado {
-  confirmado,
-  buscando
-}
+enum PasajeroEstado { confirmado, buscando }
 
 // Define el estado del viaje/cupo activo.
-enum EstadoViaje {
-  buscando,
-  confirmado,
-  iniciado
-}
+enum EstadoViaje { buscando, confirmado, iniciado }
 
 /// Representa un pasajero (o un espacio para un pasajero).
 class Pasajero {
-  final String? id;             // ID del backend (opcional para 'buscando')
-  final String nombre;          // Nombre del pasajero o "Encontrando..."
+  final String? id; // ID del backend (opcional para 'buscando')
+  final String nombre; // Nombre del pasajero o "Encontrando..."
   final PasajeroEstado estado;
 
-  Pasajero({
-    this.id,
-    required this.nombre,
-    required this.estado,
-  });
+  Pasajero({this.id, required this.nombre, required this.estado});
 }
 
 // --- Sistema de Diseño  ---
@@ -73,13 +77,15 @@ const Color kBG = Color(0xFFF6F7FB);
 
 /// Color de fondo principal de la aplicación
 const Color kTextTitle = Color(0xFF1F1F1F);
+
 /// Color de texto para títulos principales
 const Color kTextSubtitle = Colors.black54;
+
 /// Color de texto para subtítulos y cuerpo
 const Color kTextPlaceholder = Colors.grey;
+
 /// Color de texto para placeholders o texto grisado
 const Color kBorderColor = Color(0xFFE0E0E0);
-
 
 // --- Widget Principal ---
 class HomePage extends StatefulWidget {
@@ -107,14 +113,17 @@ class _HomePageState extends State<HomePage> {
 
   // --- Lista de rutas guardadas temporalmente ---
   final List<Ruta> _rutasGuardadas = [];
-
+  bool _isLoadingRutas = true;
   // --- Estado para la animación de carga ---
   bool _isCupoLoading = false;
   bool _isCupoLoad = false;
   Cupo? _cupoCreado;
 
-  EstadoViaje _estadoViaje = EstadoViaje.buscando; 
+  EstadoViaje _estadoViaje = EstadoViaje.buscando;
 
+  final FirebaseServices firebaseServices = FirebaseServices();
+
+  final AuthService authService = AuthService();
   // --- Controladores ---
   // Aquí se inicializa el [_destinoController], que es un controlador para el campo de
   // texto donde el conductor ingresa el lugar de destino al crear una nueva ruta.
@@ -122,6 +131,7 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _destinoController = TextEditingController();
+    _loadUserRoutes();
   }
 
   // Limpia los recursos asociados al controlador de texto. Es importante llamar a [dispose] en el [_destinoController]
@@ -132,7 +142,6 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  
   /// Manejador para la barra de navegación inferior
   void _onItemTapped(int index) {
     setState(() {
@@ -166,20 +175,98 @@ class _HomePageState extends State<HomePage> {
 
   /// Formatea la fecha y hora para la tarjeta de cupo activo (estilo "Nov 04, 9:30 AM")
   String _formatCupoDateTime(DateTime dt) {
-    final months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    final months = [
+      'Ene',
+      'Feb',
+      'Mar',
+      'Abr',
+      'May',
+      'Jun',
+      'Jul',
+      'Ago',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dic',
+    ];
     final monthName = months[dt.month - 1];
     final day = dt.day.toString().padLeft(2, '0');
     final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
     final minute = dt.minute.toString().padLeft(2, '0');
     final ampm = dt.hour >= 12 ? 'PM' : 'AM';
-    
+
     // Formato basado en la imagen: "Nov 04, 9:30 AM"
     return '$monthName $day, $hour:$minute $ampm';
   }
 
+// AÑADE ESTA NUEVA FUNCIÓN EN _HomePageState
+  Future<void> _loadUserRoutes() async {
+    try {
+
+      final snapshot = await firebaseServices.fetchRoutes();
+
+      final List<Ruta> rutasDesdeDB = snapshot.docs.map((doc) {
+        
+        // 1. Obtenemos el dato como un 'Object?' genérico
+        final dataObject = doc.data();
+
+        // 2. VERIFICAMOS: Si el documento no tiene datos (null)
+        // o si NO es un Mapa, lo saltamos.
+        if (dataObject == null || dataObject is! Map<String, dynamic>) {
+          // Retornamos null para este documento y lo filtramos después
+          return null;
+        }
+
+        // 3. ¡LA SOLUCIÓN!
+        // Le decimos a Dart: "Confía en mí, esto SÍ es un Mapa".
+        // Ahora 'data' es un Map<String, dynamic> (no nulo).
+        final data = dataObject as Map<String, dynamic>;
+
+        // 4. Ahora tu lógica anterior funciona perfectamente
+        // porque 'data' ya no es nulo.
+        final List<dynamic> puntosFromDB = data['puntosInteres'] ?? [];
+        final Set<String> puntos = puntosFromDB
+            .map((punto) => punto.toString())
+            .toSet();
+
+        return Ruta(
+          zona: data['zona'] ?? '', // Con ?? por si el *campo* 'zona' no existe
+          destino: data['destino'] ?? '',
+          puntos: puntos,
+          esIdaYVuelta: data['esIdaYVuelta'] ?? false,
+        );
+        
+
+      })
+      // 5. Filtramos los 'null' que resultaron de documentos vacíos
+      .whereType<Ruta>() // <-- Esto solo deja pasar los objetos 'Ruta'
+      .toList(); 
+
+      // 6. Actualiza el estado con las rutas cargadas
+      setState(() {
+        _rutasGuardadas.clear();
+        _rutasGuardadas.addAll(rutasDesdeDB);
+        _isLoadingRutas = false;
+      });
+
+    } catch (e) {
+      print("Error cargando rutas: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar tus rutas guardadas: $e'),
+            backgroundColor: kUAORed,
+          ),
+        );
+      }
+      setState(() {
+        _isLoadingRutas = false;
+      });
+    }
+  }
   // Funcion que guarda y valida una nueva ruta en la lista temporal `_rutasGuardadas`.
   // y la añade al estado. Luego, limpia los campos del formulario y cambia la vista de nuevo a la tarjeta de "Nuevo Cupo".
-  void _guardarNuevaRuta() {
+  void _guardarNuevaRuta() async {
     if (_selectedZona != null &&
         _destinoController.text.isNotEmpty &&
         _selectedPoints.isNotEmpty) {
@@ -190,24 +277,37 @@ class _HomePageState extends State<HomePage> {
         esIdaYVuelta: _isIdaYVuelta,
       );
 
-      setState(() {
-        _rutasGuardadas.add(nuevaRuta);
-        // Limpiar campos después de guardar
-        _selectedZona = null;
-        _destinoController.clear();
-        _selectedPoints.clear();
-        _isIdaYVuelta = false;
-        // Volver a la tarjeta de "Nuevo Cupo"
-        _isCrearRutaVisible = false;
-      });
+      try {
+        var rutaNueva = await firebaseServices.createRoute(
+          nuevaRuta.zona,
+          nuevaRuta.destino,
+          nuevaRuta.puntos.toList(),
+          nuevaRuta.esIdaYVuelta,
+        );
+        print('Ruta creada $rutaNueva');
 
-      // Mensaje de confirmacion
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ruta guardada con éxito.'),
-          backgroundColor: Colors.green,
-        ),
-      );
+        await _loadUserRoutes();
+        setState(() {
+        //_rutasGuardadas.add(nuevaRuta);
+          // Limpiar campos después de guardar
+          _selectedZona = null;
+          _destinoController.clear();
+          _selectedPoints.clear();
+          _isIdaYVuelta = false;
+          // Volver a la tarjeta de "Nuevo Cupo"
+          _isCrearRutaVisible = false;
+        });
+
+        // Mensaje de confirmacion
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Ruta guardada con éxito.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } catch (e) {
+        print("error creando ruta: $e");
+      }
     } else {
       // Mensaje de Error
       ScaffoldMessenger.of(context).showSnackBar(
@@ -223,7 +323,7 @@ class _HomePageState extends State<HomePage> {
 
   /// Crea, valida y "guarda" un nuevo cupo. Si la validación es exitosa, activa el estado de carga (`_isCupoLoading`),
   /// simula una operación de guardado con un `Future.delayed`, y luego desactiva el estado de carga y limpia los campos del formulario.
-  void _crearCupo() {
+  void _crearCupo() async {
     if (_selectedRuta == null ||
         _selectedDateTime == null ||
         _selectedPassengers == null) {
@@ -238,9 +338,7 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    final int capacidad =
-        int.tryParse(_selectedPassengers!.split(' ')[0]) ?? 0;
-
+    final int capacidad = int.tryParse(_selectedPassengers!.split(' ')[0]) ?? 0;
     // Genera la lista inicial de pasajeros "buscando"
     final List<Pasajero> initialPasajeros = List.generate(
       capacidad,
@@ -258,35 +356,61 @@ class _HomePageState extends State<HomePage> {
       listaPasajeros: initialPasajeros, // Guarda la lista inicial
     );
 
-    // Animacion de publicando el cupo y simula una llamada a un backend
-    setState(() {
-      _isCupoLoading = true;
-    });
-    Future.delayed(const Duration(seconds: 5), () {
-      if (mounted) {
-        // Verificar que el widget todavía está en el árbol.
+    try {
+      final cupoBD = await firebaseServices.createTrip(
+        nuevoCupo.fechaHora,
+        nuevoCupo.capacidad,
+        nuevoCupo.ruta.nombreMostrado,
+        _estadoViaje.toString(),
+      );
+      if (cupoBD == null) {
+        return null;
+      } else {
+        print('Cupo confirmado con ID: $cupoBD');
         setState(() {
-          _isCupoLoading = false;
-          _isCupoLoad = true;
-          _selectedRuta = null;
-          _selectedDateTime = null;
-          _selectedPassengers = null;
+          _isCupoLoading = true;
         });
-
-        
-        Future.delayed(const Duration(seconds: 3), () {
+        Future.delayed(const Duration(seconds: 5), () {
           if (mounted) {
             // Verificar que el widget todavía está en el árbol.
             setState(() {
-              _isCupoLoad = false;
-              _cupoCreado = nuevoCupo;
-              _estadoViaje = EstadoViaje.buscando;
+              _isCupoLoading = false;
+              _isCupoLoad = true;
+              _selectedRuta = null;
+              _selectedDateTime = null;
+              _selectedPassengers = null;
+            });
 
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted) {
+                // Verificar que el widget todavía está en el árbol.
+                setState(() {
+                  _isCupoLoad = false;
+                  _cupoCreado = nuevoCupo;
+                  _estadoViaje = EstadoViaje.buscando;
+                });
+              }
             });
           }
         });
       }
-    });
+    } catch (e) {
+      print("Error al crear el viaje desde el front: $e");
+      if (mounted) {
+        // 7. Si falla, detén la carga y muestra un error
+        setState(() {
+          _isCupoLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al crear el cupo: $e'),
+            backgroundColor: kUAORed,
+          ),
+        );
+        return null;
+      }
+    }
+    // Llama a confirmar el cupo
   }
 
   void _cancelarCupo() {
@@ -304,29 +428,23 @@ class _HomePageState extends State<HomePage> {
   }
 
   // Confirma el cupo y lo transforma en un viaje "no iniciado".
-  void _confirmarCupo() {
+  Future<String?> _confirmarCupo() async {
     // Aquí iría la llamada al backend para crear el viaje.
     // El backend debería devolver el viaje creado.
-    print(
-        "Llamando al backend: Crear Viaje con cupo ID: ${_cupoCreado!.ruta.nombreMostrado}");
-
+    /*print(
+      "Llamando al backend: Crear Viaje con cupo ID: ${_cupoCreado!.ruta.nombreMostrado}",
+    );*/
     setState(() {
       _estadoViaje = EstadoViaje.confirmado; // Cambia el estado
     });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Viaje confirmado. Listo para iniciar.'),
-        backgroundColor: Colors.green, // Usar un color de éxito
-      ),
-    );
   }
 
   // Cambia el estado del viaje de "no iniciado" a "iniciado".
   void _iniciarViaje() {
     // Aquí iría la llamada al backend para actualizar el estado del viaje.
     print(
-        "Llamando al backend: Iniciar Viaje ID: ${_cupoCreado!.ruta.nombreMostrado}");
+      "Llamando al backend: Iniciar Viaje ID: ${_cupoCreado!.ruta.nombreMostrado}",
+    );
 
     setState(() {
       _estadoViaje = EstadoViaje.iniciado; // Cambia el estado
@@ -339,7 +457,6 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
-
 
   // --- Estructura Principal de la UI ---
   @override
@@ -355,6 +472,8 @@ class _HomePageState extends State<HomePage> {
   // --- Widgets de la UI ---
   // AppBar personalizado.
   PreferredSizeWidget _buildAppBar() {
+    final user = context.watch<SessionProvider>().current;
+    final firstName = user?.firstName ?? 'Usuario';
     return AppBar(
       leadingWidth: 72,
       backgroundColor: kBG,
@@ -379,9 +498,9 @@ class _HomePageState extends State<HomePage> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                '¡Hola de nuevo Juan David!',
-                style: TextStyle(
+              Text(
+                '¡Hola de nuevo $firstName!',
+                style: const TextStyle(
                   color: kTextTitle,
                   fontSize: 18,
                   fontFamily: 'Inter',
@@ -431,9 +550,9 @@ class _HomePageState extends State<HomePage> {
           ),
           const SizedBox(height: 4),
           Text(
-            _cupoCreado != null 
-              ? 'Esperando a los pasajeros que se unan'
-              : 'Publica tu proximo cupo y encuentra pasajeros',
+            _cupoCreado != null
+                ? 'Esperando a los pasajeros que se unan'
+                : 'Publica tu proximo cupo y encuentra pasajeros',
             style: TextStyle(
               fontSize: 14,
               fontFamily: 'Inter',
@@ -458,12 +577,9 @@ class _HomePageState extends State<HomePage> {
           ),
           const SizedBox(height: 24),
           // Solo mostrar el botón si no hay un cupo activo
-          if (_cupoCreado == null) 
+          if (_cupoCreado == null)
             Column(
-              children: [
-                _buildToggleRutaButton(),
-                const SizedBox(height: 24),
-              ],
+              children: [_buildToggleRutaButton(), const SizedBox(height: 24)],
             ),
           // Título de la sección de historial
           const Text(
@@ -497,8 +613,6 @@ class _HomePageState extends State<HomePage> {
 
   // --- Tarjeta para "Nuevo Cupo" ---
   Widget _buildCrearCupoCard() {
-
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
       child: Container(
@@ -747,7 +861,7 @@ class _HomePageState extends State<HomePage> {
         width: double.infinity,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: kUAORedDark02, 
+          color: kUAORedDark02,
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
@@ -761,18 +875,14 @@ class _HomePageState extends State<HomePage> {
               blurRadius: 6,
               spreadRadius: 2,
               offset: Offset(0, 2),
-            )
+            ),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
             // --- Sección Cupo ---
-            const Text(
-              'Cupo',
-              style: titleStyle,
-            ),
+            const Text('Cupo', style: titleStyle),
             const SizedBox(height: 16),
             _buildInfoRow(
               icon: Icons.map_outlined,
@@ -787,7 +897,7 @@ class _HomePageState extends State<HomePage> {
               text: _formatCupoDateTime(cupo.fechaHora),
               style: infoStyle,
             ),
-            
+
             const SizedBox(height: 24),
 
             // --- Sección Pasajeros ---
@@ -795,16 +905,15 @@ class _HomePageState extends State<HomePage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                const Text(
-                  'Pasajeros',
-                  style: titleStyle,
-                ),
+                const Text('Pasajeros', style: titleStyle),
                 // --- Ocultar contador si el viaje está confirmado
                 if (!mostrarUIConfirmada)
                   Text(
                     '$pasajerosConfirmados de $totalCapacidad',
                     style: infoStyle.copyWith(
-                        color: kBG, fontWeight: FontWeight.bold),
+                      color: kBG,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
               ],
             ),
@@ -813,7 +922,7 @@ class _HomePageState extends State<HomePage> {
             // --- Barra de Progreso Animada ---
             if (!mostrarUIConfirmada)
               Container(
-                height: 6, 
+                height: 6,
                 width: double.infinity,
                 decoration: BoxDecoration(
                   color: kBG.withOpacity(0.3), // Color de fondo (track)
@@ -826,33 +935,35 @@ class _HomePageState extends State<HomePage> {
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 500),
                       curve: Curves.easeInOut,
-                      child: LayoutBuilder(builder: (context, constraints) {
-                        return Container(
-                          width: constraints.maxWidth * progress,
-                          decoration: BoxDecoration(
-                            color: kUAOOrange, // Color de la barra activa
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                        );
-                      }),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          return Container(
+                            width: constraints.maxWidth * progress,
+                            decoration: BoxDecoration(
+                              color: kUAOOrange, // Color de la barra activa
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
               ),
             const SizedBox(height: 20),
-            
-          // --- Lista dinámica de Pasajeros ---
-          Column(
-            children: cupo.listaPasajeros.map((pasajero) {
-              return Padding(
-                // Añade espacio solo por debajo de cada fila
-                padding: const EdgeInsets.only(bottom: 16), 
-                child: _buildPasajeroRow(pasajero, estado),
-              );
-            }).toList(),
-          ),
-          
-          const SizedBox(height: 8), 
+
+            // --- Lista dinámica de Pasajeros ---
+            Column(
+              children: cupo.listaPasajeros.map((pasajero) {
+                return Padding(
+                  // Añade espacio solo por debajo de cada fila
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _buildPasajeroRow(pasajero, estado),
+                );
+              }).toList(),
+            ),
+
+            const SizedBox(height: 8),
 
             // --- Botón Cancelar Cupo ---
             SizedBox(
@@ -866,23 +977,31 @@ class _HomePageState extends State<HomePage> {
   }
 
   // ---- botón de acción principal para la tarjeta de cupo activo ---
-  Widget _buildBotonPrincipalCupo(Cupo cupo, EstadoViaje estado, bool puedeConfirmar) {
+  Widget _buildBotonPrincipalCupo(
+    Cupo cupo,
+    EstadoViaje estado,
+    bool puedeConfirmar,
+  ) {
     // Caso 01: El viaje ya está INICIADO
     if (estado == EstadoViaje.iniciado) {
       return ElevatedButton.icon(
-        onPressed: null,                                     // Deshabilitado, el viaje está en curso
+        onPressed: null, // Deshabilitado, el viaje está en curso
         style: ElevatedButton.styleFrom(
-          backgroundColor: kUAOOrange.withAlpha(50), 
+          backgroundColor: kUAOOrange.withAlpha(50),
           foregroundColor: kBG.withAlpha(70),
           padding: const EdgeInsets.symmetric(vertical: 16),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
         ),
         icon: Icon(Icons.check, color: kBG.withAlpha(70)),
         label: const Text(
           'Viaje En Curso',
           style: TextStyle(
-              fontSize: 16, fontFamily: 'Inter', fontWeight: FontWeight.bold),
+            fontSize: 16,
+            fontFamily: 'Inter',
+            fontWeight: FontWeight.bold,
+          ),
         ),
       );
     }
@@ -890,19 +1009,23 @@ class _HomePageState extends State<HomePage> {
     // Caso 2: El viaje está CONFIRMADO (listo para iniciar)
     if (estado == EstadoViaje.confirmado) {
       return ElevatedButton.icon(
-        onPressed: _iniciarViaje,                             // NUEVA ACCIÓN
+        onPressed: _iniciarViaje, // NUEVA ACCIÓN
         style: ElevatedButton.styleFrom(
-          backgroundColor: kUAOOrange, 
+          backgroundColor: kUAOOrange,
           foregroundColor: kBG,
           padding: const EdgeInsets.symmetric(vertical: 16),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
         ),
         icon: const Icon(Icons.play_arrow, color: kBG),
         label: const Text(
           'Iniciar Viaje',
           style: TextStyle(
-              fontSize: 16, fontFamily: 'Inter', fontWeight: FontWeight.bold),
+            fontSize: 16,
+            fontFamily: 'Inter',
+            fontWeight: FontWeight.bold,
+          ),
         ),
       );
     }
@@ -910,26 +1033,30 @@ class _HomePageState extends State<HomePage> {
     // Caso 3: El cupo está BUSCANDO y SÍ CUMPLE condiciones para confirmar
     if (estado == EstadoViaje.buscando && puedeConfirmar) {
       return ElevatedButton.icon(
-        onPressed: _confirmarCupo, 
+        onPressed: _confirmarCupo,
         style: ElevatedButton.styleFrom(
-          backgroundColor: kUAOOrange, 
+          backgroundColor: kUAOOrange,
           foregroundColor: kBG,
           padding: const EdgeInsets.symmetric(vertical: 16),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
         ),
         icon: const Icon(Icons.check_circle_outline, color: kBG),
         label: const Text(
           'Confirmar Cupo', // Nuevo Texto
           style: TextStyle(
-              fontSize: 16, fontFamily: 'Inter', fontWeight: FontWeight.bold),
+            fontSize: 16,
+            fontFamily: 'Inter',
+            fontWeight: FontWeight.bold,
+          ),
         ),
       );
     }
 
     // Caso 4: Buscando viaje, no cumple condiciones
     return ElevatedButton(
-      onPressed: _cancelarCupo, 
+      onPressed: _cancelarCupo,
       style: ElevatedButton.styleFrom(
         backgroundColor: kUAOOrange,
         foregroundColor: kBG,
@@ -937,25 +1064,28 @@ class _HomePageState extends State<HomePage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
       child: const Text(
-        '- Cancelar Cupo', 
+        '- Cancelar Cupo',
         style: TextStyle(
-            fontSize: 16, fontFamily: 'Inter', fontWeight: FontWeight.bold),
+          fontSize: 16,
+          fontFamily: 'Inter',
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
 
   // --- Widget auxiliar para mostrar una fila de información en la tarjeta de cupo activo. ---
-  Widget _buildInfoRow({required IconData icon, required String text, required TextStyle style}) {
+  Widget _buildInfoRow({
+    required IconData icon,
+    required String text,
+    required TextStyle style,
+  }) {
     return Row(
       children: [
         Icon(icon, color: kBG, size: 24),
         const SizedBox(width: 12),
         Expanded(
-          child: Text(
-            text,
-            style: style,
-            overflow: TextOverflow.ellipsis,
-          ),
+          child: Text(text, style: style, overflow: TextOverflow.ellipsis),
         ),
       ],
     );
@@ -963,48 +1093,52 @@ class _HomePageState extends State<HomePage> {
 
   // Widget auxiliar para mostrar una fila de pasajero en la tarjeta de cupo activo.
   Widget _buildPasajeroRow(Pasajero pasajero, EstadoViaje estadoViaje) {
-  // Determina el estilo basado en el estado del pasajero
-  bool esConfirmado = pasajero.estado == PasajeroEstado.confirmado;
-  bool mostrarBotonRechazar = esConfirmado && (estadoViaje == EstadoViaje.buscando);
+    // Determina el estilo basado en el estado del pasajero
+    bool esConfirmado = pasajero.estado == PasajeroEstado.confirmado;
+    bool mostrarBotonRechazar =
+        esConfirmado && (estadoViaje == EstadoViaje.buscando);
 
-  return Row(
-    children: [
-      Icon(Icons.person_outline, color: kBG, size: 24),
-      const SizedBox(width: 12),
-      Text(
-        pasajero.nombre, // Usa el nombre del modelo
-        style: TextStyle(
-          fontSize: 16,
-          // Texto blanco si está confirmado, gris si está buscando
-          color: esConfirmado ? kBG : kBorderColor,
-          fontFamily: 'Inter',
-          fontWeight: esConfirmado ? FontWeight.w500 : FontWeight.normal,
-          fontStyle: esConfirmado ? FontStyle.normal : FontStyle.italic,
-        ),
-      ),
-      const Spacer(),
-      if (mostrarBotonRechazar) // Muestra el botón solo si está confirmado
-        ElevatedButton(
-          onPressed: () {
-            // TODO: Implementar lógica para rechazar pasajero
-            // (ej. llamar al backend con pasajero.id)
-            print("Rechazar pasajero con ID: ${pasajero.id}");
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: kBG,
-            foregroundColor: kTextPlaceholder,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            elevation: 0,
+    return Row(
+      children: [
+        Icon(Icons.person_outline, color: kBG, size: 24),
+        const SizedBox(width: 12),
+        Text(
+          pasajero.nombre, // Usa el nombre del modelo
+          style: TextStyle(
+            fontSize: 16,
+            // Texto blanco si está confirmado, gris si está buscando
+            color: esConfirmado ? kBG : kBorderColor,
+            fontFamily: 'Inter',
+            fontWeight: esConfirmado ? FontWeight.w500 : FontWeight.normal,
+            fontStyle: esConfirmado ? FontStyle.normal : FontStyle.italic,
           ),
-          child: const Text('Rechazar'),
         ),
-    ],
-  );
-}
+        const Spacer(),
+        if (mostrarBotonRechazar) // Muestra el botón solo si está confirmado
+          ElevatedButton(
+            onPressed: () {
+              // TODO: Implementar lógica para rechazar pasajero
+              // (ej. llamar al backend con pasajero.id)
+              print("Rechazar pasajero con ID: ${pasajero.id}");
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kBG,
+              foregroundColor: kTextPlaceholder,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 0,
+            ),
+            child: const Text('Rechazar'),
+          ),
+      ],
+    );
+  }
 
   // --- Tarjeta Anamacion de carga  ---
   Widget _buildLoadingCard() {
@@ -1155,7 +1289,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-
   // --- Tarjeta para "Nuevo Ruta" ---
   Widget _buildCrearRutaCard() {
     return Padding(
@@ -1164,7 +1297,7 @@ class _HomePageState extends State<HomePage> {
         width: double.infinity,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: kUAORedDark02, 
+          color: kUAORedDark02,
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
@@ -1485,9 +1618,7 @@ class _HomePageState extends State<HomePage> {
       ),
       child: TextField(
         controller: controller,
-        style: const TextStyle(
-          color: kTextTitle,
-        ), 
+        style: const TextStyle(color: kTextTitle),
         // Texto que escribe el usuario
         decoration: InputDecoration(
           icon: Icon(icon, color: kTextTitle, size: 24),
@@ -1513,14 +1644,12 @@ class _HomePageState extends State<HomePage> {
     return Row(
       children: [
         Theme(
-          data: Theme.of(context).copyWith(
-            unselectedWidgetColor: kUAOOrange, 
-          ),
+          data: Theme.of(context).copyWith(unselectedWidgetColor: kUAOOrange),
           child: Checkbox(
             value: value,
             onChanged: onChanged,
-            activeColor: kUAOOrange, 
-            checkColor: Colors.white, 
+            activeColor: kUAOOrange,
+            checkColor: Colors.white,
           ),
         ),
         Text(
@@ -1548,8 +1677,8 @@ class _HomePageState extends State<HomePage> {
           });
         },
         style: OutlinedButton.styleFrom(
-          foregroundColor: kUAORed, 
-          side: const BorderSide(color: kUAORed, width: 1.5), 
+          foregroundColor: kUAORed,
+          side: const BorderSide(color: kUAORed, width: 1.5),
           padding: const EdgeInsets.symmetric(vertical: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
@@ -1616,8 +1745,8 @@ class _HomePageState extends State<HomePage> {
       currentIndex: _selectedIndex,
       onTap: _onItemTapped,
       backgroundColor: Colors.white,
-      selectedItemColor: kUAORed, 
-      unselectedItemColor: kTextPlaceholder, 
+      selectedItemColor: kUAORed,
+      unselectedItemColor: kTextPlaceholder,
       type: BottomNavigationBarType.fixed, // Mantiene el fondo blanco
       items: const <BottomNavigationBarItem>[
         BottomNavigationBarItem(
@@ -1628,10 +1757,7 @@ class _HomePageState extends State<HomePage> {
           icon: Icon(Icons.notifications),
           label: 'Actividad',
         ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person), 
-          label: 'Perfil'
-          ),
+        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
       ],
     );
   }

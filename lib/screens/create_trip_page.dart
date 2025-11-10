@@ -15,7 +15,7 @@ class CreateTripPage extends StatefulWidget {
 
 class _CreateTripPageState extends State<CreateTripPage> {
   final _formKey = GlobalKey<FormState>();
-  final FirebaseServices _viajesService = FirebaseServices();
+  final FirebaseServices _firebaseService = FirebaseServices();
 
   // Controladores y variables de estado
   final TextEditingController origenController = TextEditingController();
@@ -34,12 +34,12 @@ class _CreateTripPageState extends State<CreateTripPage> {
     });
 
     try {
-      await _viajesService.createTrip(
+      /*await _firebaseService.createTrip(
         cantidadPasajeros!,
         ['Nicki', 'Joan', 'Hans zimmer', 'Daniela'],
         origenController.text.trim(),
         destinoController.text.trim(),
-      );
+      );*/
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
