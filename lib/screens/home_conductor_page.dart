@@ -562,9 +562,7 @@ class _HomePageState extends State<HomePage> {
           ),
           const SizedBox(height: 4),
           Text(
-            _cupoCreado != null
-                ? 'Esperando a los pasajeros que se unan'
-                : 'Publica tu proximo cupo y encuentra pasajeros',
+            _cupoCreado != null ? 'Esperando a los pasajeros que se unan' : 'Publica tu proximo cupo y encuentra pasajeros',
             style: TextStyle(
               fontSize: 14,
               fontFamily: 'Inter',

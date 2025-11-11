@@ -91,11 +91,12 @@ class _LoginPageState extends State<LoginPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(errorMessage)),
     );
-  } catch (_) {
+  } catch (e) {
     if (!mounted) return;
     setState(() => _isLoading = false);
+    print(e);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Hubo un error: no se pudo conectar con el servidor')),
+      const SnackBar(content: Text('Hubo un errorrrr: no se pudo conectar con el servidor')),
     );
   }
 }
