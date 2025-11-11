@@ -44,6 +44,7 @@ class FirebaseServices {
       'puntosInteres': puntosInteres,
       'horaCreacion': DateTime.now(),
       'esIdaYVuelta': esIdaYVuelta,
+      'precio': priceForZone(zona),
     });
 
     if (docRef.id.isEmpty) {
@@ -62,6 +63,7 @@ class FirebaseServices {
     String estado,
     String vehiculo,
     String firstName,
+    int price,
   ) async {
     // 1. Obtener la referencia del nuevo documento (esto genera el ID)
     final docRef = _db.collection('viajes').doc();
@@ -92,6 +94,7 @@ class FirebaseServices {
         'estado': estado, //manejar 3 estados: confirmado, en curso, completado
         'vehiculo': vehiculo,
         'nombreConductor': firstName,
+        'precio': price,
       });
     } catch (e) {
       throw Exception('Error al crear el viaje desde el catch de services: $e');

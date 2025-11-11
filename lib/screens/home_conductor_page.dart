@@ -10,8 +10,6 @@ import 'package:loading_animation_widget/loading_animation_widget.dart'; // Libr
 import 'package:animated_text_kit/animated_text_kit.dart'; // Librería para animaciones de texto
 import 'package:provider/provider.dart'; // Librería para animaciones de texto
 
-import 'package:animated_text_kit/animated_text_kit.dart';
-
 // ------ Modelo de Datos para Rutas ------
 // Representa una ruta creada por el conductor.
 class Ruta {
@@ -19,12 +17,14 @@ class Ruta {
   final String destino;
   final Set<String> puntos;
   final bool esIdaYVuelta;
+  final int price;
 
   Ruta({
     required this.zona,
     required this.destino,
     required this.puntos,
     required this.esIdaYVuelta,
+    required this.price,
   });
   String get nombreMostrado => '$zona - $destino';
 
@@ -112,6 +112,24 @@ const Color kTextPlaceholder = Colors.grey;
 /// Color de texto para placeholders o texto grisado
 const Color kBorderColor = Color(0xFFE0E0E0);
 
+// --- Precios por zona (modificar aquí para personalizar) ---
+/// Mapa de precios por zona. Cambia los valores según necesites.
+/// Ejemplo: 'Norte' => 8000
+const Map<String, int> kZonePrices = {
+  'Norte': 8000,
+  'Sur-Centro': 9000,
+  'Sur': 8500,
+  'Oriente': 8200,
+  'Oeste': 7800,
+};
+
+/// Helper para obtener el precio asociado a una zona.
+/// Si la zona no existe en el mapa, devuelve un valor por defecto (8000).
+int priceForZone(String zona) {
+  if (zona.isEmpty) return kZonePrices['Norte']!; // default
+  return kZonePrices[zona] ?? kZonePrices['Norte']!;
+}
+
 // --- Widget Principal ---
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -119,6 +137,7 @@ class HomePage extends StatefulWidget {
   @override
   State<HomePage> createState() => _HomePageState();
 }
+
 
 class _HomePageState extends State<HomePage> {
   // --- Estado General de la UI (Pantalla 'Viajes' es el índice 0) ---
@@ -253,13 +272,27 @@ class _HomePageState extends State<HomePage> {
                 .map((punto) => punto.toString())
                 .toSet();
 
+            // Si el documento de la ruta en la BD incluye un campo 'price', úsalo,
+            // si no, calculamos el precio según la zona.
+            int precioDesdeDB = 0;
+            if (data.containsKey('price')) {
+              final raw = data['price'];
+              if (raw is int) {
+                precioDesdeDB = raw;
+              } else if (raw is String) {
+                precioDesdeDB = int.tryParse(raw) ?? 0;
+              }
+            }
+
+            final zonaName = (data['zona'] ?? '') as String;
+            final precioFinal = (precioDesdeDB > 0) ? precioDesdeDB : priceForZone(zonaName);
+
             return Ruta(
-              zona:
-                  data['zona'] ??
-                  '', // Con ?? por si el *campo* 'zona' no existe
+              zona: zonaName,
               destino: data['destino'] ?? '',
               puntos: puntos,
               esIdaYVuelta: data['esIdaYVuelta'] ?? false,
+              price: precioFinal,
             );
           })
           // 5. Filtramos los 'null' que resultaron de documentos vacíos
@@ -299,6 +332,8 @@ class _HomePageState extends State<HomePage> {
         destino: _destinoController.text,
         puntos: Set.from(_selectedPoints),
         esIdaYVuelta: _isIdaYVuelta,
+        // Asignamos el precio de la zona al crear la ruta
+        price: priceForZone(_selectedZona!),
       );
 
       try {
@@ -391,6 +426,7 @@ class _HomePageState extends State<HomePage> {
         _estadoViaje.toString(),
         user!.vehicle,
         user.firstName,
+        nuevoCupo.ruta.price,
       );
       if (cupoBD == null) {
         return;
@@ -459,7 +495,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   // Confirma el cupo y lo transforma en un viaje "no iniciado".
-  Future<String?> _confirmarCupo() async {
+  Future<void> _confirmarCupo() async {
     // Aquí iría la llamada al backend para crear el viaje.
     // El backend debería devolver el viaje creado.
 

@@ -963,7 +963,7 @@ Future<void> _showReservationSuccessDialog() async {
           // ¡Importante! Firebase guarda Timestamp, tu modelo usa DateTime
           dateTime: (data['horaSalida'] as Timestamp?)?.toDate() ?? DateTime.now(), 
           
-          price: (data['price'] as num?)?.toInt() ?? 0,
+          price: (data['precio'] as num?)?.toInt() ?? 0,
           seatsAvailable: (data['cantidad_Pasajeros'] as num?)?.toInt() ?? 0,
           rating: (data['rating'] as num?)?.toDouble() ?? 4.0, // Maneja números
           vehicle: data['vehiculo'] as String? ?? 'Vehículooo',
