@@ -7,12 +7,11 @@ import 'package:flutter_cuposuao/services/session_provider.dart';
 import 'package:lottie/lottie.dart'; // Librería para animaciones Lottie
 import 'package:loading_animation_widget/loading_animation_widget.dart'; // Librería para animaciones de carga
 
-import 'package:animated_text_kit/animated_text_kit.dart';
+import 'package:animated_text_kit/animated_text_kit.dart';// Librería para animaciones de texto
 import 'package:provider/provider.dart'; // Librería para animaciones de texto
 
-import 'package:animated_text_kit/animated_text_kit.dart'; // Librería para animaciones de texto
-import 'package:provider/provider.dart';
-import 'package:flutter_cuposuao/services/session_provider.dart';
+import 'package:animated_text_kit/animated_text_kit.dart'; 
+
 
 
 // ------ Modelo de Datos para Rutas ------
@@ -61,7 +60,7 @@ class Cupo {
 enum PasajeroEstado { confirmado, buscando }
 
 // Define el estado del viaje/cupo activo.
-enum EstadoViaje { buscando, confirmado, iniciado }
+enum EstadoViaje { cancelado,buscando, confirmado, iniciado }
 
 /// Representa un pasajero (o un espacio para un pasajero).
 class Pasajero {
@@ -126,7 +125,7 @@ class _HomePageState extends State<HomePage> {
   Cupo? _cupoCreado;
 
   EstadoViaje _estadoViaje = EstadoViaje.buscando;
-
+  late String id_Viaje= "";  
   final FirebaseServices firebaseServices = FirebaseServices();
 
   final AuthService authService = AuthService();
@@ -366,11 +365,13 @@ class _HomePageState extends State<HomePage> {
       final cupoBD = await firebaseServices.createTrip(
         nuevoCupo.fechaHora,
         nuevoCupo.capacidad,
+        nuevoCupo.listaPasajeros,
         nuevoCupo.ruta.nombreMostrado,
         _selectedRuta!.zona,
         _selectedRuta!.destino,
         _estadoViaje.toString(),
         user!.vehicle,
+        user!.firstName
       );
       if (cupoBD == null) {
         return;
@@ -378,6 +379,7 @@ class _HomePageState extends State<HomePage> {
         print('Cupo confirmado con ID: $cupoBD');
         setState(() {
           _isCupoLoading = true;
+          id_Viaje = cupoBD;
         });
         Future.delayed(const Duration(seconds: 5), () {
           if (mounted) {
@@ -425,8 +427,9 @@ class _HomePageState extends State<HomePage> {
   void _cancelarCupo() {
     setState(() {
       _cupoCreado = null;
-      _estadoViaje = EstadoViaje.buscando;
+      _estadoViaje = EstadoViaje.cancelado;
     });
+    firebaseServices.updateTripStatus(id_Viaje, _estadoViaje.toString());
     // Opcional: Mostrar un SnackBar de confirmación
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(

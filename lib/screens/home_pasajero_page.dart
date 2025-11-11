@@ -894,7 +894,7 @@ Future<void> _showReservationSuccessDialog() async {
 
   Future<void> _init() async {
     await fetchTrips();
-    _applyFilters();
+    //_applyFilters();
   }
 
   Future<void> fetchTrips() async {
@@ -917,8 +917,8 @@ Future<void> _showReservationSuccessDialog() async {
         // 3. Mapea los campos (¡cuidado con los nulos y tipos!)
         return Trip(
           id: doc.id, // Usa el ID del documento
-          driverName: data['id'] as String? ?? 'Conductor',
-          origin: data['origen'] as String? ?? 'Origen desconocido',
+          driverName: data['nombreConductor'] as String? ?? 'Conductor',
+          origin: data['Origen'] as String? ?? 'Origen desconocido',
           destination: data['destino'] as String? ?? 'Destino desconocido',
           
           // ¡Importante! Firebase guarda Timestamp, tu modelo usa DateTime
@@ -927,7 +927,7 @@ Future<void> _showReservationSuccessDialog() async {
           price: (data['price'] as num?)?.toInt() ?? 0,
           seatsAvailable: (data['cantidad_Pasajeros'] as num?)?.toInt() ?? 0,
           rating: (data['rating'] as num?)?.toDouble() ?? 4.0, // Maneja números
-          vehicle: data['vehicle'] as String? ?? 'Vehículo',
+          vehicle: data['vehiculo'] as String? ?? 'Vehículooo',
         );
       }).toList(); // Convierte todo a una Lista
 
