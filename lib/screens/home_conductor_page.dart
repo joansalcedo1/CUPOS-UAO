@@ -7,12 +7,10 @@ import 'package:flutter_cuposuao/services/session_provider.dart';
 import 'package:lottie/lottie.dart'; // Librería para animaciones Lottie
 import 'package:loading_animation_widget/loading_animation_widget.dart'; // Librería para animaciones de carga
 
-import 'package:animated_text_kit/animated_text_kit.dart';// Librería para animaciones de texto
+import 'package:animated_text_kit/animated_text_kit.dart'; // Librería para animaciones de texto
 import 'package:provider/provider.dart'; // Librería para animaciones de texto
 
-import 'package:animated_text_kit/animated_text_kit.dart'; 
-
-
+import 'package:animated_text_kit/animated_text_kit.dart';
 
 // ------ Modelo de Datos para Rutas ------
 // Representa una ruta creada por el conductor.
@@ -54,13 +52,35 @@ class Cupo {
     required this.capacidad,
     required this.listaPasajeros,
   });
+
+  // --- ¡AÑADE ESTE MÉTODO COMPLETO DENTRO DE TU CLASE Cupo! ---
+  /// Crea una copia de este Cupo pero con los campos reemplazados.
+  Cupo copyWith({
+    Ruta? ruta,
+    DateTime? fechaHora,
+    String? pasajeros,
+    int? capacidad,
+    List<Pasajero>? listaPasajeros,
+  }) {
+    return Cupo(
+      // Si el parámetro 'ruta' NO es nulo, usa el nuevo valor.
+      // Si ES nulo, usa el valor antiguo (this.ruta).
+      ruta: ruta ?? this.ruta,
+      fechaHora: fechaHora ?? this.fechaHora,
+      pasajeros: pasajeros ?? this.pasajeros,
+      capacidad: capacidad ?? this.capacidad,
+      listaPasajeros: listaPasajeros ?? this.listaPasajeros,
+    );
+  }
+
+  // --- FIN DEL MÉTODO ---
 }
 
 // Define el estado de un pasajero en un cupo.
-enum PasajeroEstado { confirmado, buscando }
+enum PasajeroEstado { confirmado, enEspera, buscando }
 
 // Define el estado del viaje/cupo activo.
-enum EstadoViaje { cancelado,buscando, confirmado, iniciado }
+enum EstadoViaje { cancelado, buscando, confirmado, iniciado }
 
 /// Representa un pasajero (o un espacio para un pasajero).
 class Pasajero {
@@ -125,7 +145,7 @@ class _HomePageState extends State<HomePage> {
   Cupo? _cupoCreado;
 
   EstadoViaje _estadoViaje = EstadoViaje.buscando;
-  late String id_Viaje= "";  
+  late String id_Viaje = "";
   final FirebaseServices firebaseServices = FirebaseServices();
 
   final AuthService authService = AuthService();
@@ -204,48 +224,47 @@ class _HomePageState extends State<HomePage> {
     return '$monthName $day, $hour:$minute $ampm';
   }
 
-// AÑADE ESTA NUEVA FUNCIÓN EN _HomePageState
+  // AÑADE ESTA NUEVA FUNCIÓN EN _HomePageState
   Future<void> _loadUserRoutes() async {
     try {
-
       final snapshot = await firebaseServices.fetchRoutes();
 
-      final List<Ruta> rutasDesdeDB = snapshot.docs.map((doc) {
-        
-        // 1. Obtenemos el dato como un 'Object?' genérico
-        final dataObject = doc.data();
+      final List<Ruta> rutasDesdeDB = snapshot.docs
+          .map((doc) {
+            // 1. Obtenemos el dato como un 'Object?' genérico
+            final dataObject = doc.data();
 
-        // 2. VERIFICAMOS: Si el documento no tiene datos (null)
-        // o si NO es un Mapa, lo saltamos.
-        if (dataObject == null || dataObject is! Map<String, dynamic>) {
-          // Retornamos null para este documento y lo filtramos después
-          return null;
-        }
+            // 2. VERIFICAMOS: Si el documento no tiene datos (null)
+            // o si NO es un Mapa, lo saltamos.
+            if (dataObject == null || dataObject is! Map<String, dynamic>) {
+              // Retornamos null para este documento y lo filtramos después
+              return null;
+            }
 
-        // 3. ¡LA SOLUCIÓN!
-        // Le decimos a Dart: "Confía en mí, esto SÍ es un Mapa".
-        // Ahora 'data' es un Map<String, dynamic> (no nulo).
-        final data = dataObject as Map<String, dynamic>;
+            // 3. ¡LA SOLUCIÓN!
+            // Le decimos a Dart: "Confía en mí, esto SÍ es un Mapa".
+            // Ahora 'data' es un Map<String, dynamic> (no nulo).
+            final data = dataObject as Map<String, dynamic>;
 
-        // 4. Ahora tu lógica anterior funciona perfectamente
-        // porque 'data' ya no es nulo.
-        final List<dynamic> puntosFromDB = data['puntosInteres'] ?? [];
-        final Set<String> puntos = puntosFromDB
-            .map((punto) => punto.toString())
-            .toSet();
+            // 4. Ahora tu lógica anterior funciona perfectamente
+            // porque 'data' ya no es nulo.
+            final List<dynamic> puntosFromDB = data['puntosInteres'] ?? [];
+            final Set<String> puntos = puntosFromDB
+                .map((punto) => punto.toString())
+                .toSet();
 
-        return Ruta(
-          zona: data['zona'] ?? '', // Con ?? por si el *campo* 'zona' no existe
-          destino: data['destino'] ?? '',
-          puntos: puntos,
-          esIdaYVuelta: data['esIdaYVuelta'] ?? false,
-        );
-        
-
-      })
-      // 5. Filtramos los 'null' que resultaron de documentos vacíos
-      .whereType<Ruta>() // <-- Esto solo deja pasar los objetos 'Ruta'
-      .toList(); 
+            return Ruta(
+              zona:
+                  data['zona'] ??
+                  '', // Con ?? por si el *campo* 'zona' no existe
+              destino: data['destino'] ?? '',
+              puntos: puntos,
+              esIdaYVuelta: data['esIdaYVuelta'] ?? false,
+            );
+          })
+          // 5. Filtramos los 'null' que resultaron de documentos vacíos
+          .whereType<Ruta>() // <-- Esto solo deja pasar los objetos 'Ruta'
+          .toList();
 
       // 6. Actualiza el estado con las rutas cargadas
       setState(() {
@@ -253,7 +272,6 @@ class _HomePageState extends State<HomePage> {
         _rutasGuardadas.addAll(rutasDesdeDB);
         _isLoadingRutas = false;
       });
-
     } catch (e) {
       print("Error cargando rutas: $e");
       if (mounted) {
@@ -269,6 +287,7 @@ class _HomePageState extends State<HomePage> {
       });
     }
   }
+
   // Funcion que guarda y valida una nueva ruta en la lista temporal `_rutasGuardadas`.
   // y la añade al estado. Luego, limpia los campos del formulario y cambia la vista de nuevo a la tarjeta de "Nuevo Cupo".
   void _guardarNuevaRuta() async {
@@ -293,7 +312,7 @@ class _HomePageState extends State<HomePage> {
 
         await _loadUserRoutes();
         setState(() {
-        //_rutasGuardadas.add(nuevaRuta);
+          //_rutasGuardadas.add(nuevaRuta);
           // Limpiar campos después de guardar
           _selectedZona = null;
           _destinoController.clear();
@@ -371,7 +390,7 @@ class _HomePageState extends State<HomePage> {
         _selectedRuta!.destino,
         _estadoViaje.toString(),
         user!.vehicle,
-        user!.firstName
+        user.firstName,
       );
       if (cupoBD == null) {
         return;
@@ -443,9 +462,11 @@ class _HomePageState extends State<HomePage> {
   Future<String?> _confirmarCupo() async {
     // Aquí iría la llamada al backend para crear el viaje.
     // El backend debería devolver el viaje creado.
+
     /*print(
       "Llamando al backend: Crear Viaje con cupo ID: ${_cupoCreado!.ruta.nombreMostrado}",
     );*/
+
     setState(() {
       _estadoViaje = EstadoViaje.confirmado; // Cambia el estado
     });
@@ -486,8 +507,6 @@ class _HomePageState extends State<HomePage> {
   PreferredSizeWidget _buildAppBar() {
     final user = context.watch<SessionProvider>().current;
     final firstName = user?.firstName ?? 'Usuario';
-
-   
 
     return AppBar(
       leadingWidth: 72,
@@ -565,7 +584,9 @@ class _HomePageState extends State<HomePage> {
           ),
           const SizedBox(height: 4),
           Text(
-            _cupoCreado != null ? 'Esperando a los pasajeros que se unan' : 'Publica tu proximo cupo y encuentra pasajeros',
+            _cupoCreado != null
+                ? 'Esperando a los pasajeros que se unan'
+                : 'Publica tu proximo cupo y encuentra pasajeros',
             style: TextStyle(
               fontSize: 14,
               fontFamily: 'Inter',
@@ -618,8 +639,53 @@ class _HomePageState extends State<HomePage> {
     if (_isCupoLoad) {
       return _buildLoadCard(message: 'Cupo publicado con éxito!');
     }
-    if (_cupoCreado != null) {
+    /*if (_cupoCreado != null) {
       return _buildCupoActivoCard(_cupoCreado!, _estadoViaje);
+    }*/
+
+    // --- ESTA ES LA LÓGICA CLAVE ---
+    // Si tenemos un cupo activo (con ID), empezamos a escuchar
+    if (_cupoCreado != null && id_Viaje.isNotEmpty) {
+      print("cupo es diferente de null y id_viaje no esta vacio");
+      return StreamBuilder<List<Pasajero>>(
+        // 1. Llama a tu nueva función de Stream
+        stream: firebaseServices.escucharPasajerosDelViaje(id_Viaje!),
+
+        builder: (context, snapshot) {
+          // Mientras carga la lista por primera vez
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(color: kUAORed),
+            );
+          }
+
+          // Si el stream da un error
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+
+          // Si tenemos datos (¡incluso si es una lista vacía!)
+          if (snapshot.hasData) {
+            // 3. ¡Esta es tu lista de pasajeros en tiempo real!
+            final List<Pasajero> pasajerosEnVivo = snapshot.data!;
+
+            // 4. Actualizamos el cupo local con la nueva lista
+            // (Necesitas un método copyWith en tu clase Cupo)
+            final cupoActualizado = _cupoCreado!.copyWith(
+              listaPasajeros: pasajerosEnVivo,
+            );
+
+            // 5. Mostramos la tarjeta con los datos frescos
+            return _buildCupoActivoCard(
+              cupoActualizado,
+              _estadoViaje, // El estado local (buscando, confirmado...)
+            );
+          }
+
+          // Estado por defecto (no debería pasar si el stream funciona)
+          return const Center(child: Text('Cargando cupo...'));
+        },
+      );
     }
     return _buildCrearCupoCard();
   }
@@ -1077,7 +1143,7 @@ class _HomePageState extends State<HomePage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
       child: const Text(
-        '- Cancelar Cupo',
+        'Cancelar Cupo',
         style: TextStyle(
           fontSize: 16,
           fontFamily: 'Inter',
@@ -1132,11 +1198,12 @@ class _HomePageState extends State<HomePage> {
             onPressed: () {
               // TODO: Implementar lógica para rechazar pasajero
               // (ej. llamar al backend con pasajero.id)
+              firebaseServices.deletePassengerFromTrip(id_Viaje,pasajero.id!,pasajero.nombre,1);
               print("Rechazar pasajero con ID: ${pasajero.id}");
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: kBG,
-              foregroundColor: kTextPlaceholder,
+              foregroundColor: const Color.fromARGB(255, 0, 0, 0),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               textStyle: const TextStyle(
                 fontSize: 12,

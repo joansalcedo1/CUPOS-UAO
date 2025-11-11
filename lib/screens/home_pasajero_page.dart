@@ -39,6 +39,7 @@ class _HomePasajeroPageState extends State<HomePasajeroPage> {
   //cuántos asientos reservó el usuario por viaje
   final Map<String, int> _reservedQty = <String, int>{};
   int _unseenReservations = 0;
+  bool _isReserving=false;
 
   void _reserveTrip(Trip t, int qty) {
     if (_reservedIds.contains(t.id)) return;
@@ -201,10 +202,48 @@ void _openReserveSheet(Trip t) {
                     Expanded(
                       child: ElevatedButton(
                         onPressed: (t.seatsAvailable <= 0) ? null : () async {
-                          Navigator.pop(ctx);       // cierra el sheet
-                          _reserveTrip(t, qty);
-                          _unseenReservations++;     // guarda la reserva (ya existente) 【0: L3-L12】
-                          await _showReservationSuccessDialog(); // muestra modal con check
+                          // 1. Activa el estado de carga
+                          setMState(() => _isReserving = true);
+
+                          try {
+                            // 2. Obtenemos los datos del pasajero (desde el provider)
+                            // ¡IMPORTANTE! Usa ctx.read, no ctx.watch dentro de un evento
+                            final session = ctx.read<SessionProvider>();
+                            final passengerId = session.current?.uid;
+                            final passengerName = session.current?.firstName ?? 'Pasajero';
+
+                            if (passengerId == null) {
+                              throw Exception("No se pudo identificar al usuario.");
+                            }
+
+                            // 3. ¡AQUÍ SE LLAMA A FIREBASE!
+                            await _firebaseServices.addPassengerToTrip(
+                              t.id,
+                              passengerId,
+                              passengerName,
+                              qty
+                            );
+
+                            // 4. Si todo sale bien, cierra el sheet y actualiza el UI
+                            if (!ctx.mounted) return;
+                            Navigator.pop(ctx);       // Cierra el sheet
+                            _reserveTrip(t, qty);     // Actualiza el estado local
+                            _unseenReservations++;    // Actualiza el badge
+                            await _showReservationSuccessDialog(); // Muestra el éxito
+
+                          } catch (e) {
+                            // 5. Si algo falla, muéstrale un error
+                            print("Error al reservar en Firebase: $e");
+                            if (ctx.mounted) {
+                              Navigator.pop(ctx); // Cierra el sheet
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error al reservar: $e'),
+                                  backgroundColor: kUAORed,
+                                ),
+                              );
+                            }
+                          }// muestra modal con check
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: kUAORed, foregroundColor: Colors.white,

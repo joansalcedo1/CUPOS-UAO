@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_cuposuao/screens/home_conductor_page.dart';
 
 class FirebaseServices {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -17,38 +18,9 @@ class FirebaseServices {
     }
     return null;
   }
-///Funcion para buscar el nombre de cualquier usuario por el id
-  Future<String?> fetchUserNameById(String idUsuario) async {
-    // 1. Verificación simple del parámetro
-    if (idUsuario.isEmpty) {
-      print("Error: El ID de usuario proporcionado está vacío.");
-      return null;
-    }
 
-    try {
-      // 2. Apuntar al documento del usuario usando el ID proporcionado
-      // Colección 'usuarios' -> Documento (con idUsuario)
-      DocumentSnapshot<Map<String, dynamic>> doc = await _db
-          .collection('usuarios')
-          .doc(idUsuario)
-          .get();
-
-      // 3. Verificar si el documento existe
-      if (doc.exists) {
-        // 4. Obtener los datos y devolver el campo 'nombre'
-        // Tu BD muestra el campo como "nombre: Juan David"
-        String? nombre = doc.data()?['nombre'];
-
-        return nombre;
-      } else {
-        print("Error: No se encontró un documento con el ID: $idUsuario");
-        return null;
-      }
-    } catch (e) {
-      print("Error al obtener el nombre del usuario por ID: $e");
-      return null;
-    }
-  }
+  ///Funcion para buscar el nombre de cualquier usuario por el id
+  
 
   Future<String> createRoute(
     String zona,
@@ -83,7 +55,7 @@ class FirebaseServices {
   Future<String?> createTrip(
     DateTime horaSalida,
     int cantPasajeros,
-    List<String> pasajeros,
+    List<Pasajero> pasajeros,
     String ruta,
     String origen,
     String destino,
@@ -96,13 +68,23 @@ class FirebaseServices {
 
     // 2. Obtener el ID generado
     final String viajeId = docRef.id;
+    //convertir en un mapa los pasajeros
+    final List<Map<String, dynamic>> pasajerosMapList = pasajeros.map((p) {
+      // Por cada objeto Pasajero, creamos un Map
+      return {
+        'id': p.id, // El ID del pasajero (será null al inicio)
+        'nombre': p.nombre, // "Encontrando pasajero..."
+        'estado': p.estado.toString(), // "PasajeroEstado.buscando"
+        'cantidad': 1, // Asumimos que cada slot "buscando" es 1 cupo
+      };
+    }).toList();
     try {
       await docRef.set({
         'conductorId': _auth.currentUser?.uid,
         'viajeId': viajeId, // Opcional: guardar el ID dentro del documento
         'horaSalida': horaSalida,
         'cantidad_Pasajeros': cantPasajeros,
-        'pasajeros': pasajeros,
+        'pasajeros': pasajerosMapList,
         'ruta': ruta,
         'Origen': origen,
         'destino': destino,
@@ -128,13 +110,55 @@ class FirebaseServices {
     await _db.collection('viajes').doc(viajeId).update({'estado': nuevoEstado});
   }
 
-  Future<void> addPassengerToTrip(String viajeId, String pasajeroId) async {
-    String? nombreUsuario = await fetchUserNameById(pasajeroId);
+  Future<void> addPassengerToTrip(String viajeId,String pasajeroId,String pasajeroName,int qty,) async {
+    
+    // 1. Prepara el objeto Map que vas a añadir a la lista
+    final passengerData = {
+      'id': pasajeroId,
+      'nombre': pasajeroName,
+      'estado': 'confirmado', // O el estado que manejes
+      'cantidad': qty,
+    };
 
-    await _db.collection('viajes').doc(viajeId).update({
-      'pasajeros': FieldValue.arrayUnion([nombreUsuario]),
+    // 2. Apunta al documento del viaje
+    final tripRef = _db
+        .collection(
+          'viajes',
+        ) // O 'viajes_publicados', el nombre de tu colección
+        .doc(viajeId);
+
+    // 3. Ejecuta la transacción en Firebase
+    await tripRef.update({
+      // Añade el 'passengerData' a la lista 'pasajeros'
+      'pasajeros': FieldValue.arrayUnion([passengerData]),
+
+      // Resta la cantidad de 'cantidad_Pasajeros'
+      'cantidad_Pasajeros': FieldValue.increment(-qty),
     });
   }
+
+
+///Elimina un pasajero de la lista de un viaje y re-suma los asientos disponibles.
+Future<void> deletePassengerFromTrip(
+  String viajeId,String pasajeroId,String pasajeroName,int qty,
+) async {
+  final passengerData = {
+      'id': pasajeroId,
+      'nombre': pasajeroName,
+      'estado': 'confirmado', 
+      'cantidad': qty,
+    };
+  final tripRef = _db
+      .collection(
+        'viajes',
+      ) 
+      .doc(viajeId);
+
+  await tripRef.update({
+    'pasajeros': FieldValue.arrayRemove([passengerData]),
+    'cantidad_Pasajeros': FieldValue.increment(qty),
+  });
+}
 
   Future<QuerySnapshot<Object?>> fetchRoutes() async {
     // Llama a .get() sobre la colección 'rutas'
@@ -158,4 +182,40 @@ class FirebaseServices {
     }
     return snapshot;
   }
+///Función para escuchar en tiempo real los pasajeros del viaje
+  Stream<List<Pasajero>> escucharPasajerosDelViaje(String viajeId) {
+  
+  // 1. Apunta al documento y usa .snapshots() para escuchar
+  final streamDelDocumento = _db.collection('viajes').doc(viajeId).snapshots();
+
+  // 2. Transforma el stream: debe convertir el DocumentSnapshot en una List<Pasajero>
+  return streamDelDocumento.map((snapshot) {
+    
+    // Si el documento es borrado o no existe
+    if (!snapshot.exists) {
+      return []; // Devuelve lista vacía
+    }
+
+    final data = snapshot.data();
+    if (data == null) {
+      return [];
+    }
+
+    // 3. Extrae la lista 'pasajeros' (igual que en la función Future)
+    final List<dynamic> pasajerosFromDB = data['pasajeros'] ?? [];
+
+    // 4. Convierte (parsea) cada Mapa a un objeto Pasajero
+    final List<Pasajero> listaDePasajeros = pasajerosFromDB.map((pasajeroData) {
+      return Pasajero(
+        id: pasajeroData['id'],
+        nombre: pasajeroData['nombre'] ?? 'Pasajero',
+        estado: (pasajeroData['estado'] == 'PasajeroEstado.confirmado')
+            ? PasajeroEstado.confirmado
+            : PasajeroEstado.buscando,
+      );
+    }).toList();
+    print("Escuchando los pasajeros del viaje");
+    return listaDePasajeros;
+  });
+}
 }
