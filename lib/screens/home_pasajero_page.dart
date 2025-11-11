@@ -814,7 +814,6 @@ Widget _buildProfileSection() {
       dateTime: DateTime.now().add(const Duration(days: 1, hours: 2)),
       price: 10000,
       seatsAvailable: 4,
-      allowsLuggage: true,
       rating: 4.9,
       vehicle: 'Nissan kicks',
     ),
@@ -927,7 +926,6 @@ Future<void> _showReservationSuccessDialog() async {
           
           price: (data['price'] as num?)?.toInt() ?? 0,
           seatsAvailable: (data['cantidad_Pasajeros'] as num?)?.toInt() ?? 0,
-          allowsLuggage: data['allowsLuggage'] as bool? ?? true,
           rating: (data['rating'] as num?)?.toDouble() ?? 4.0, // Maneja números
           vehicle: data['vehicle'] as String? ?? 'Vehículo',
         );
