@@ -6,8 +6,13 @@ import 'package:flutter_cuposuao/services/firebase_services.dart';
 import 'package:flutter_cuposuao/services/session_provider.dart';
 import 'package:lottie/lottie.dart'; // Librería para animaciones Lottie
 import 'package:loading_animation_widget/loading_animation_widget.dart'; // Librería para animaciones de carga
-import 'package:animated_text_kit/animated_text_kit.dart';
+
+import 'package:animated_text_kit/animated_text_kit.dart';// Librería para animaciones de texto
 import 'package:provider/provider.dart'; // Librería para animaciones de texto
+
+import 'package:animated_text_kit/animated_text_kit.dart'; 
+
+
 
 // ------ Modelo de Datos para Rutas ------
 // Representa una ruta creada por el conductor.
@@ -55,7 +60,7 @@ class Cupo {
 enum PasajeroEstado { confirmado, buscando }
 
 // Define el estado del viaje/cupo activo.
-enum EstadoViaje { buscando, confirmado, iniciado }
+enum EstadoViaje { cancelado,buscando, confirmado, iniciado }
 
 /// Representa un pasajero (o un espacio para un pasajero).
 class Pasajero {
@@ -120,7 +125,7 @@ class _HomePageState extends State<HomePage> {
   Cupo? _cupoCreado;
 
   EstadoViaje _estadoViaje = EstadoViaje.buscando;
-
+  late String id_Viaje= "";  
   final FirebaseServices firebaseServices = FirebaseServices();
 
   final AuthService authService = AuthService();
@@ -355,20 +360,26 @@ class _HomePageState extends State<HomePage> {
       capacidad: capacidad, // Guarda el entero
       listaPasajeros: initialPasajeros, // Guarda la lista inicial
     );
-
+    final user = context.read<SessionProvider>().current;
     try {
       final cupoBD = await firebaseServices.createTrip(
         nuevoCupo.fechaHora,
         nuevoCupo.capacidad,
+        nuevoCupo.listaPasajeros,
         nuevoCupo.ruta.nombreMostrado,
+        _selectedRuta!.zona,
+        _selectedRuta!.destino,
         _estadoViaje.toString(),
+        user!.vehicle,
+        user!.firstName
       );
       if (cupoBD == null) {
-        return null;
+        return;
       } else {
         print('Cupo confirmado con ID: $cupoBD');
         setState(() {
           _isCupoLoading = true;
+          id_Viaje = cupoBD;
         });
         Future.delayed(const Duration(seconds: 5), () {
           if (mounted) {
@@ -416,8 +427,9 @@ class _HomePageState extends State<HomePage> {
   void _cancelarCupo() {
     setState(() {
       _cupoCreado = null;
-      _estadoViaje = EstadoViaje.buscando;
+      _estadoViaje = EstadoViaje.cancelado;
     });
+    firebaseServices.updateTripStatus(id_Viaje, _estadoViaje.toString());
     // Opcional: Mostrar un SnackBar de confirmación
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -474,6 +486,9 @@ class _HomePageState extends State<HomePage> {
   PreferredSizeWidget _buildAppBar() {
     final user = context.watch<SessionProvider>().current;
     final firstName = user?.firstName ?? 'Usuario';
+
+   
+
     return AppBar(
       leadingWidth: 72,
       backgroundColor: kBG,
@@ -509,14 +524,14 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 4),
               Row(
                 children: const [
-                  Icon(Icons.location_on, size: 14, color: kTextTitle),
+                  Icon(Icons.location_on, size: 14, color: kUAORedDark),
                   SizedBox(width: 4),
                   Text(
                     'Universidad Autonoma de Occidente',
                     style: TextStyle(
                       fontSize: 14,
                       fontFamily: 'Inter',
-                      color: kTextSubtitle,
+                      color: kTextTitle,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -550,9 +565,7 @@ class _HomePageState extends State<HomePage> {
           ),
           const SizedBox(height: 4),
           Text(
-            _cupoCreado != null
-                ? 'Esperando a los pasajeros que se unan'
-                : 'Publica tu proximo cupo y encuentra pasajeros',
+            _cupoCreado != null ? 'Esperando a los pasajeros que se unan' : 'Publica tu proximo cupo y encuentra pasajeros',
             style: TextStyle(
               fontSize: 14,
               fontFamily: 'Inter',

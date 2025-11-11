@@ -27,6 +27,16 @@ class SessionProvider extends ChangeNotifier {
         ? rolField.first.toString()
         : (rolField?.toString() ?? 'pasajero');
 
+    // --- INICIO DE LA CORRECCIÓN ---
+    final vehicleField = data['modelo_Vehiculo'];
+    print("El carro es: $vehicleField");
+
+    // Comprobamos si es un String Y si no está vacío
+    final vehicle = (vehicleField is String && vehicleField.isNotEmpty)
+        ? vehicleField // Si es, usamos el valor
+        : 'Carrooo'; // Si no (es null, no es String, o está vacío), usamos el default
+    // --- FIN DE LA CORRECCIÓN ---
+
     // Preferimos 'primerNombre'; si no, derivamos de 'nombre'
     final rawName = (data['primerNombre'] ?? data['nombre'] ?? 'Usuario')
         .toString()
@@ -35,7 +45,12 @@ class SessionProvider extends ChangeNotifier {
         ? 'Usuario'
         : rawName.split(RegExp(r'\s+')).first;
 
-    _current = AppUser(uid: authUser.uid, firstName: firstName, role: role);
+    _current = AppUser(
+      uid: authUser.uid,
+      firstName: firstName,
+      role: role,
+      vehicle: vehicle,
+    );
     notifyListeners();
   }
 

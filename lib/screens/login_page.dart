@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_cuposuao/services/session_provider.dart';
 
+import 'package:flutter_cuposuao/animations/custom_lottie_widgets.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -22,6 +23,9 @@ class _LoginPageState extends State<LoginPage> {
   final AuthService _authService = AuthService();
 
   bool _obscurePassword = true;
+  bool _isLoading = false;
+
+  static const Color kUAORed = Color(0xFFD61F14);
 
   void _login() async {
   if (!_formKey.currentState!.validate()) return;
@@ -30,11 +34,14 @@ class _LoginPageState extends State<LoginPage> {
   final email = '$username@uao.edu.co';
   final password = passController.text.trim();
 
+  setState(() => _isLoading = true);
+
   try {
     // 1) Autenticar
     final user = await _authService.signInWithEmailAndPassword(email, password);
     if (user == null) {
       if (!mounted) return;
+      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No se pudo iniciar sesión')),
       );
@@ -80,13 +87,16 @@ class _LoginPageState extends State<LoginPage> {
         errorMessage = "Error de inicio de sesión: ${e.code}";
     }
     if (!mounted) return;
+    setState(() => _isLoading = false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(errorMessage)),
     );
-  } catch (_) {
+  } catch (e) {
     if (!mounted) return;
+    setState(() => _isLoading = false);
+    print(e);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Hubo un error: no se pudo conectar con el servidor')),
+      const SnackBar(content: Text('Hubo un errorrrr: no se pudo conectar con el servidor')),
     );
   }
 }
@@ -111,179 +121,193 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  'Cupos UAO',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Image.asset(
-                  'Images/LogoCuposUAO.png',
-                  height: 200, // ajusta el tamaño según necesites
-                  fit: BoxFit.contain,
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Acceso institucional UAO',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 30),
-
-                // Campo usuario
-                TextFormField(
-                  controller: userController,
-                  decoration: const InputDecoration(
-                    labelText: 'Usuario (sin @uao.edu.co)',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Ingresa tu usuario';
-                    }
-                    if (value.contains('@')) {
-                      return 'No incluyas el dominio (@uao.edu.co)';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 20),
-
-                // Campo contraseña
-                TextFormField(
-                  controller: passController,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: 'Contraseña',
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.lock),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off
-                            : Icons.visibility,
+      body: Stack(
+        children: [
+          // ---- Contenido principal ----
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'Cupos UAO',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
+                    ),
+                    const SizedBox(height: 10),
+                    Image.asset(
+                      'Images/LogoCuposUAO.png',
+                      height: 200,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Acceso institucional UAO',
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 30),
+
+                    // Usuario
+                    TextFormField(
+                      controller: userController,
+                      decoration: const InputDecoration(
+                        labelText: 'Usuario (sin @uao.edu.co)',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.person),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Ingresa tu usuario';
+                        }
+                        if (value.contains('@')) {
+                          return 'No incluyas el dominio (@uao.edu.co)';
+                        }
+                        return null;
                       },
                     ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Ingresa tu contraseña';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 30),
+                    const SizedBox(height: 20),
 
-                // Botones de login y registro en fila
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Botón de registrarse
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _register,
+                    // Contraseña
+                    TextFormField(
+                      controller: passController,
+                      obscureText: _obscurePassword,
+                      decoration: InputDecoration(
+                        labelText: 'Contraseña',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.lock),
+                        suffixIcon: IconButton(
+                          icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Ingresa tu contraseña';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 30),
+
+                    // Botones
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _register,
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              side: const BorderSide(color: kUAORed),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text(
+                              'Registrarse',
+                              style: TextStyle(fontSize: 16, color: kUAORed),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _login,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: kUAORed,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text('Iniciar sesión', style: TextStyle(fontSize: 16, color: Colors.white)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Divider
+                    const Row(
+                      children: [
+                        Expanded(child: Divider(thickness: 1)),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 8.0),
+                          child: Text('O'),
+                        ),
+                        Expanded(child: Divider(thickness: 1)),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Google
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _loginWithGoogle,
+                        icon: Image.network(
+                          'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Google_2015_logo.svg/1200px-Google_2015_logo.svg.png',
+                          height: 20,
+                        ),
+                        label: const Text(
+                          '',
+                          style: TextStyle(fontSize: 16, color: Colors.black87),
+                        ),
                         style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          side: const BorderSide(color: Color(0xFFD61F14)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          side: const BorderSide(color: Colors.grey),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: const Text(
-                          'Registrarse',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Color(0xFFD61F14),
-                          ),
-                        ),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    // Botón de iniciar sesión
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _login,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFFD61F14),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          'Iniciar sesión',
-                          style: TextStyle(fontSize: 16, color: Colors.white),
-                        ),
-                      ),
+                    const SizedBox(height: 15),
+
+                    const Text(
+                      'Solo se permiten correos institucionales @uao.edu.co',
+                      style: TextStyle(color: Colors.grey),
+                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
-
-                // Divider con texto
-                Row(
-                  children: const [
-                    Expanded(child: Divider(thickness: 1)),
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8.0),
-                      child: Text('O'),
-                    ),
-                    Expanded(child: Divider(thickness: 1)),
-                  ],
-                ),
-                const SizedBox(height: 20),
-
-                // Botón de Google
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _loginWithGoogle,
-                    icon: Image.network(
-                      'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Google_2015_logo.svg/1200px-Google_2015_logo.svg.png',
-                      height: 20,
-                    ),
-                    label: const Text(
-                      '',
-                      style: TextStyle(fontSize: 16, color: Colors.black87),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      side: const BorderSide(color: Colors.grey),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 15),
-
-                // Texto inferior
-                const Text(
-                  'Solo se permiten correos institucionales @uao.edu.co',
-                  style: TextStyle(color: Colors.grey),
-                  textAlign: TextAlign.center,
-                ),
-              ],
+              ),
             ),
           ),
-        ),
+
+          // ---- Overlay de carga ----
+          if (_isLoading)
+            Positioned.fill(
+              child: Container(
+                color: Colors.white, // Fondo blanco solicitado
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      // Tu animación Lottie reutilizable
+                      LottieLoadingCard(),
+                      SizedBox(height: 16),
+                      // Indicador secundario en rojo UAO
+                      SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 3,
+                          valueColor: AlwaysStoppedAnimation<Color>(kUAORed),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

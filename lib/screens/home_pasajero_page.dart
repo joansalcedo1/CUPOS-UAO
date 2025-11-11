@@ -1,6 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cuposuao/services/firebase_services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_cuposuao/services/session_provider.dart';
+import 'package:lottie/lottie.dart';
 
 
 /// Color principal de la aplicación (UAO Red)
@@ -8,7 +11,7 @@ const Color kUAORed = Color(0xFFD61F14);
 
 const Color kUAORedDark = Color.fromRGBO(138, 20, 40, 1);
 
-const Color kUAORedDark02 = Color.fromARGB(255, 172, 11, 51);
+const Color kUAORedDark02 = Color(0xFFAC0B33);
 
 const Color kUAOOrange = Color.fromARGB(255, 255, 130, 108);
 /// Color de fondo principal de la aplicación
@@ -29,9 +32,337 @@ class HomePasajeroPage extends StatefulWidget {
   State<HomePasajeroPage> createState() => _HomePasajeroPageState();
 }
 
+
 class _HomePasajeroPageState extends State<HomePasajeroPage> {
+  //control local de reservas simuladas 
+  final Set<String> _reservedIds = <String>{};
+  //cuántos asientos reservó el usuario por viaje
+  final Map<String, int> _reservedQty = <String, int>{};
+  int _unseenReservations = 0;
+
+  void _reserveTrip(Trip t, int qty) {
+    if (_reservedIds.contains(t.id)) return;
+    setState(() {
+      _reservedIds.add(t.id);
+      _reservedQty[t.id] = qty;
+      _reservedTrips.add({
+        'trip': t,
+        'qty': qty,
+      });
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Reservaste $qty asiento(s) con ${t.driverName}.'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+  void _cancelReservation(String tripId, {int? qty}) {
+  final current = _reservedQty[tripId] ?? 0;
+  if (current <= 0) return;
+
+  final toCancel = (qty == null || qty <= 0 || qty > current) ? current : qty;
+  final remaining = current - toCancel;
+
+  setState(() {
+    if (remaining <= 0) {
+      _reservedIds.remove(tripId);
+      _reservedQty.remove(tripId);
+      _reservedTrips.removeWhere((r) => r['trip'].id == tripId);
+    } else {
+      _reservedQty[tripId] = remaining;
+      final idx = _reservedTrips.indexWhere((r) => r['trip'].id == tripId);
+      if (idx != -1) {
+        _reservedTrips[idx]['qty'] = remaining;
+      }
+    }
+  });
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        remaining <= 0
+          ? 'Reserva cancelada.'
+          : 'Cancelaste $toCancel asiento(s). Quedan $remaining.'
+      ),
+      duration: const Duration(seconds: 2),
+    ),
+  );
+}
+
+void _openReserveSheet(Trip t) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (ctx) {
+      int qty = 1; // por defecto
+      final maxQty = t.seatsAvailable.clamp(0, 6); // limita a 6 por UX si quieres
+
+      return Padding(
+        padding: EdgeInsets.only(
+          left: 16, right: 16, top: 12,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+        ),
+        child: StatefulBuilder(
+          builder: (ctx, setMState) {
+            final dt = t.dateTime;
+            final date = '${dt.day.toString().padLeft(2,'0')}/${dt.month.toString().padLeft(2,'0')}/${dt.year}';
+            final time = '${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}';
+            final total = t.price * qty;
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Tirita
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: kBorderColor, borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const Text('Confirmar reserva',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: kTextTitle)),
+                const SizedBox(height: 12),
+
+                // Conductor
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundColor: kUAORed.withOpacity(0.12),
+                    child: Text(t.driverName.split(' ').first.characters.first,
+                        style: const TextStyle(color: kUAORed, fontWeight: FontWeight.bold)),
+                  ),
+                  title: Text(t.driverName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text('${t.vehicle}  •  $date  •  $time'),
+                ),
+
+                const SizedBox(height: 8),
+
+                // Selector de asientos
+                Row(
+                  children: [
+                    const Text('Asientos', style: TextStyle(fontWeight: FontWeight.w600)),
+                    const Spacer(),
+                    IconButton(
+                      tooltip: 'Menos',
+                      onPressed: qty > 1 ? () => setMState(() => qty--) : null,
+                      icon: const Icon(Icons.remove_circle_outline),
+                    ),
+                    Text('$qty', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    IconButton(
+                      tooltip: 'Más',
+                      onPressed: qty < maxQty ? () => setMState(() => qty++) : null,
+                      icon: const Icon(Icons.add_circle_outline),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 8),
+
+                // Total
+                Row(
+                  children: [
+                    const Text('Total', style: TextStyle(fontWeight: FontWeight.w600)),
+                    const Spacer(),
+                    Chip(
+                      label: Text('\$$total', style: const TextStyle(color: Colors.white)),
+                      backgroundColor: kUAORed,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                // Acciones
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: kUAORed),
+                          foregroundColor: kUAORed,
+                        ),
+                        child: const Text('Cancelar'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: (t.seatsAvailable <= 0) ? null : () async {
+                          Navigator.pop(ctx);       // cierra el sheet
+                          _reserveTrip(t, qty);
+                          _unseenReservations++;     // guarda la reserva (ya existente) 【0: L3-L12】
+                          await _showReservationSuccessDialog(); // muestra modal con check
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kUAORed, foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Reservar ahora'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    },
+  );
+}
+
+void _openCancelSheet(Trip t) {
+  final reserved = _reservedQty[t.id] ?? 0;
+  if (reserved <= 0) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('No tienes asientos reservados en este viaje.')),
+    );
+    return;
+  }
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (ctx) {
+      int qty = 1; // por defecto cancelar 1
+      final maxQty = reserved;
+
+      return Padding(
+        padding: EdgeInsets.only(
+          left: 16, right: 16, top: 12,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+        ),
+        child: StatefulBuilder(
+          builder: (ctx, setMState) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: kBorderColor, borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const Text(
+                  'Cancelar asientos',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: kTextTitle),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Tienes $reserved asiento(s) reservados. ¿Cuántos deseas cancelar?',
+                  style: const TextStyle(color: kTextSubtitle),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => setMState(() {
+                        if (qty > 1) qty--;
+                      }),
+                      icon: const Icon(Icons.remove_circle_outline),
+                    ),
+                    Expanded(
+                      child: Slider(
+                        min: 1,
+                        max: maxQty.toDouble(),
+                        divisions: (maxQty > 1) ? (maxQty - 1) : 1,
+                        value: qty.toDouble(),
+                        label: '$qty',
+                        onChanged: (v) => setMState(() => qty = v.round()),
+                        activeColor: kUAORed,
+                        thumbColor: kUAORed,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => setMState(() {
+                        if (qty < maxQty) qty++;
+                      }),
+                      icon: const Icon(Icons.add_circle_outline),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: kUAORed),
+                          foregroundColor: kUAORed,
+                        ),
+                        child: const Text('Volver'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _cancelReservation(t.id, qty: qty);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kUAORed, foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Confirmar'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Center(
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _cancelReservation(t.id); // cancela todo
+                    },
+                    child: const Text(
+                      'Cancelar todos los asientos',
+                      style: TextStyle(color: kTextSubtitle, decoration: TextDecoration.underline),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+              ],
+            );
+          },
+        ),
+      );
+    },
+  );
+}
+
+
+
+
   // Simula nombre de usuario (traer de tu auth/estado)
+
+  final FirebaseServices _firebaseServices = FirebaseServices();
   
+
+  int _selectedIndex = 0;
+
+
   PreferredSizeWidget _buildAppBar() {
     final user = context.watch<SessionProvider>().current;
     final firstName = user?.firstName ?? 'Usuario';
@@ -95,43 +426,383 @@ class _HomePasajeroPageState extends State<HomePasajeroPage> {
     );
   }
 
-  
+  Widget _buildBottomNavigationBar() {
+  final int badgeCount = _unseenReservations; //  ahora usa “no vistas”
+  Widget _withBadge(Widget icon) {
+    if (badgeCount <= 0) return icon;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        icon,
+        Positioned(
+          right: -6,
+          top: -2,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.red,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white, width: 1.5),
+            ),
+            child: Text(
+              badgeCount > 99 ? '99+' : '$badgeCount',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  return BottomNavigationBar(
+    currentIndex: _selectedIndex,
+    onTap: _onItemTapped, //  usa el handler de arriba
+    selectedItemColor: kUAORed,
+    unselectedItemColor: kTextPlaceholder,
+    items: [
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.directions_car),
+        label: 'Viajes',
+      ),
+      BottomNavigationBarItem(
+        icon: _withBadge(const Icon(Icons.bookmark_added_outlined)),
+        label: 'Mis reservas',
+      ),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.person),
+        label: 'Perfil',
+      ),
+    ],
+  );
+}
+
+
+
+  Widget _buildTripsSection() {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      // ===== Título y descripción =====
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Text(
+              'Buscar viaje',
+              style: TextStyle(
+                color: kTextTitle,
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            SizedBox(height: 6),
+            Text(
+              'Filtra y encuentra cupos disponibles según tu origen, destino, fecha, '
+              'precio y número de asientos.',
+              style: TextStyle(color: kTextSubtitle),
+            ),
+          ],
+        ),
+      ),
+
+      // ===== Barra de búsqueda rápida =====
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _originCtrl,
+                decoration: InputDecoration(
+                  hintText: 'Origen',
+                  hintStyle: const TextStyle(color: kTextPlaceholder),
+                  prefixIcon:
+                      const Icon(Icons.trip_origin, color: kUAORed),
+                  isDense: true,
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: const BorderSide(color: kBorderColor),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide:
+                        const BorderSide(color: kUAORed, width: 1.5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  suffixIcon: _originCtrl.text.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.clear,
+                              color: kUAORedDark),
+                          onPressed: () {
+                            _originCtrl.clear();
+                            _applyFilters();
+                          },
+                        ),
+                ),
+                style: const TextStyle(color: kTextTitle),
+                onChanged: (_) => _applyFilters(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.arrow_forward,
+                size: 18, color: kTextSubtitle),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _destCtrl,
+                decoration: InputDecoration(
+                  hintText: 'Destino',
+                  hintStyle: const TextStyle(color: kTextPlaceholder),
+                  prefixIcon: const Icon(Icons.flag, color: kUAORed),
+                  isDense: true,
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: const BorderSide(color: kBorderColor),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide:
+                        const BorderSide(color: kUAORed, width: 1.5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  suffixIcon: _destCtrl.text.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.clear,
+                              color: kUAORedDark),
+                          onPressed: () {
+                            _destCtrl.clear();
+                            _applyFilters();
+                          },
+                        ),
+                ),
+                style: const TextStyle(color: kTextTitle),
+                onChanged: (_) => _applyFilters(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.tonalIcon(
+              onPressed: _openFilterSheet,
+              icon: const Icon(Icons.filter_list),
+              label: const Text('Filtros'),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: kUAORed,
+                side: const BorderSide(color: kUAORed),
+              ),
+            ),
+          ],
+        ),
+      ),
+
+      // ===== Chips resumen de filtros =====
+      _FilterChipsSummary(
+        date: _selectedDate,
+        priceRange: _priceRange,
+        minSeats: _minSeats,
+        luggage: _needsLuggage,
+        onClearAll: _clearFilters,
+        hasAny: _hasAnyFilterApplied,
+      ),
+
+      // ===== Lista de viajes =====
+      Expanded(
+        child: _loading
+            ? const _LoadingList()
+            : RefreshIndicator(
+                color: kUAORed,
+                onRefresh: _onRefresh,
+                child: _filtered.isEmpty
+                    ? const _EmptyState()
+                    : ListView.separated(
+                        padding:
+                            const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                        itemCount: _filtered.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: 12),
+                        itemBuilder: (ctx, i) {
+                          final t = _filtered[i];
+                          return TripCard(
+                            trip: t,
+                            onTap: () {},
+                            onReserve: () => _openReserveSheet(t),
+                            reserved: _reservedIds.contains(t.id),
+                          );
+                        },
+                      ),
+              ),
+      ),
+    ],
+  );
+}
+
+  Widget _buildMyReservations() {
+  if (_reservedTrips.isEmpty) {
+    return const Center(
+      child: Text('Aún no has hecho reservas.',
+          style: TextStyle(color: kTextSubtitle)),
+    );
+  }
+
+  return ListView.separated(
+    padding: const EdgeInsets.all(16),
+    separatorBuilder: (_, __) => const SizedBox(height: 12),
+    itemCount: _reservedTrips.length,
+    itemBuilder: (ctx, i) {
+      final r = _reservedTrips[i];
+      final t = r['trip'] as Trip;
+      final qty = r['qty'] as int;
+      final total = t.price * qty;
+      final dt = t.dateTime;
+      final date =
+          '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+      final time =
+          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+      return Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 0,
+        color: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${t.origin} → ${t.destination}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: kTextTitle)),
+              const SizedBox(height: 4),
+              Text('$date  •  $time',
+                  style: const TextStyle(color: kTextSubtitle)),
+
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.person, size: 18, color: kUAORedDark),
+                  const SizedBox(width: 4),
+                  Text(t.driverName,
+                      style: const TextStyle(
+                          color: kTextTitle, fontWeight: FontWeight.w500)),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Chip(
+                    label: Text('$qty asiento(s)',
+                        style: const TextStyle(color: kTextTitle)),
+                    backgroundColor: kBG,
+                    side: const BorderSide(color: kBorderColor),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  const SizedBox(width: 8),
+                  Chip(
+                    label: Text('\$$total',
+                        style: const TextStyle(color: Colors.white)),
+                    backgroundColor: kUAORed,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => _openCancelSheet(t),
+                    icon: const Icon(Icons.cancel_outlined),
+                    label: const Text('Cancelar'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: kUAORed,
+                      side: const BorderSide(color: kUAORed),
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                            content: Text(
+                                'Abriendo chat con ${t.driverName}...')),
+                      );
+                    },
+                    icon: const Icon(Icons.chat_outlined),
+                    label: const Text('Chat'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kUAORed,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+Widget _buildProfileSection() {
+  return const Center(
+    child: Text('Sección de perfil (pendiente)',
+        style: TextStyle(color: kTextSubtitle)),
+  );
+}
+
 
   // --- Mock data (conéctalo a tu backend) ---
-  final List<Trip> _allTrips = [
+  List<Trip?> _allTrips = [
     Trip(
       id: 'T-001',
       driverName: 'Laura G.',
-      origin: 'Cali',
-      destination: 'Palmira',
+      origin: 'UAO',
+      destination: 'Flora',
       dateTime: DateTime.now().add(const Duration(hours: 3)),
-      price: 18000,
+      price: 8000,
       seatsAvailable: 2,
-      allowsLuggage: true,
+      
       rating: 4.8,
       vehicle: 'Kia Picanto',
     ),
     Trip(
       id: 'T-002',
       driverName: 'Santiago P.',
-      origin: 'Cali',
-      destination: 'Jamundí',
+      origin: 'UAO',
+      destination: 'Valle del lili',
       dateTime: DateTime.now().add(const Duration(hours: 5)),
-      price: 15000,
+      price: 5000,
       seatsAvailable: 1,
-      allowsLuggage: false,
+      
       rating: 4.5,
       vehicle: 'Chevrolet Sail',
     ),
     Trip(
       id: 'T-003',
       driverName: 'Mariana R.',
-      origin: 'Yumbo',
-      destination: 'Cali',
-      dateTime: DateTime.now().add(const Duration(days: 1, hours: 2)),
-      price: 22000,
+      origin: 'San Antonio',
+      destination: 'UAO',
+      dateTime: DateTime.now().add(const Duration(hours: 1, minutes: 30)),
+      price: 6000,
       seatsAvailable: 3,
-      allowsLuggage: true,
+      
       rating: 4.9,
       vehicle: 'Mazda 3',
     ),
@@ -143,7 +814,6 @@ class _HomePasajeroPageState extends State<HomePasajeroPage> {
       dateTime: DateTime.now().add(const Duration(days: 1, hours: 2)),
       price: 10000,
       seatsAvailable: 4,
-      allowsLuggage: true,
       rating: 4.9,
       vehicle: 'Nissan kicks',
     ),
@@ -152,14 +822,69 @@ class _HomePasajeroPageState extends State<HomePasajeroPage> {
   // --- UI State ---
   List<Trip> _filtered = [];
   bool _loading = true;
+  // Guardar reservas (viaje + cantidad)
+  final List<Map<String, dynamic>> _reservedTrips = [];
 
   // --- Filtros ---
   final _originCtrl = TextEditingController();
   final _destCtrl = TextEditingController();
   DateTime? _selectedDate;
-  RangeValues _priceRange = const RangeValues(0, 50000);
+  RangeValues _priceRange = const RangeValues(0, 15000);
   int _minSeats = 1;
   bool? _needsLuggage;
+
+Future<void> _showReservationSuccessDialog() async {
+  // Modal centrado, no cerrable tocando el fondo
+  await showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) {
+      return Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Animación de check (usa tu .lottie)
+              Lottie.network(
+                'https://lottie.host/1989f0e5-fbf8-4173-9803-a021f1246a10/MGitSE9klX.json',
+                width: 300,
+                repeat: true,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '¡Reserva creada!',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Puedes verla en Mis reservas',
+                style: TextStyle(color: Colors.black54),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kUAORedDark02,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Listo'),
+              )
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
 
   @override
   void initState() {
@@ -169,17 +894,84 @@ class _HomePasajeroPageState extends State<HomePasajeroPage> {
 
   Future<void> _init() async {
     await fetchTrips();
-    _applyFilters();
+    //_applyFilters();
   }
 
   Future<void> fetchTrips() async {
     setState(() => _loading = true);
-    await Future.delayed(const Duration(milliseconds: 600));
+
+    try {
+      // 1. Llama a tu nueva función de servicio
+      final snapshot = await _firebaseServices.fetchTrips();
+
+      // 2. Convierte los documentos de Firebase a tu modelo 'Trip'
+      final List<Trip?> tripsFromDB = snapshot.docs.map((doc) {
+        final dataObject = doc.data();
+        
+        if(dataObject==null){
+          return null;
+        }
+        // Obtiene los datos del documento y fuerza el tipo no-nullable
+        final data = dataObject as Map<String, dynamic>;
+
+        // 3. Mapea los campos (¡cuidado con los nulos y tipos!)
+        return Trip(
+          id: doc.id, // Usa el ID del documento
+          driverName: data['nombreConductor'] as String? ?? 'Conductor',
+          origin: data['Origen'] as String? ?? 'Origen desconocido',
+          destination: data['destino'] as String? ?? 'Destino desconocido',
+          
+          // ¡Importante! Firebase guarda Timestamp, tu modelo usa DateTime
+          dateTime: (data['horaSalida'] as Timestamp?)?.toDate() ?? DateTime.now(), 
+          
+          price: (data['price'] as num?)?.toInt() ?? 0,
+          seatsAvailable: (data['cantidad_Pasajeros'] as num?)?.toInt() ?? 0,
+          rating: (data['rating'] as num?)?.toDouble() ?? 4.0, // Maneja números
+          vehicle: data['vehiculo'] as String? ?? 'Vehículooo',
+        );
+      }).toList(); // Convierte todo a una Lista
+
+      // 4. Actualiza el estado con los datos REALES
+      setState(() {
+        _loading = false;
+        _allTrips = tripsFromDB;
+        // _filtered = List.of(_allTrips); // 'applyFilters' se encargará de esto
+      });
+
+    } catch (e) {
+      print("Error al cargar viajes: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar los viajes: $e'),
+            backgroundColor: kUAORed,
+          ),
+        );
+      }
+      setState(() {
+        _loading = false;
+        _allTrips = []; // En caso de error, deja la lista vacía
+      });
+    }
+    
+    //await Future.delayed(const Duration(milliseconds: 600));
+    
     setState(() {
       _loading = false;
-      _filtered = List.of(_allTrips);
+      _filtered = List.of(_allTrips as Iterable<Trip>);
     });
   }
+
+  /// Manejador para la barra de navegación inferior
+ void _onItemTapped(int index) {
+  setState(() {
+    _selectedIndex = index;
+    if (index == 1) {
+      _unseenReservations = 0; // se limpia al entrar al apartado
+    }
+  });
+}
+
 
   void _applyFilters() {
     final origin = _originCtrl.text.trim().toLowerCase();
@@ -191,7 +983,7 @@ class _HomePasajeroPageState extends State<HomePasajeroPage> {
         a.year == b.year && a.month == b.month && a.day == b.day;
 
     setState(() {
-      _filtered = _allTrips.where((t) {
+      _filtered = _allTrips.whereType<Trip>().where((t) {
         final okOrigin =
             origin.isEmpty || t.origin.toLowerCase().contains(origin);
         final okDest =
@@ -201,11 +993,9 @@ class _HomePasajeroPageState extends State<HomePasajeroPage> {
             : sameDay(t.dateTime, _selectedDate!);
         final okPrice = t.price >= minPrice && t.price <= maxPrice;
         final okSeats = t.seatsAvailable >= _minSeats;
-        final okLuggage = _needsLuggage == null
-            ? true
-            : t.allowsLuggage == _needsLuggage;
+        
 
-        return okOrigin && okDest && okDate && okPrice && okSeats && okLuggage;
+        return okOrigin && okDest && okDate && okPrice && okSeats;
       }).toList();
     });
   }
@@ -215,7 +1005,7 @@ class _HomePasajeroPageState extends State<HomePasajeroPage> {
       _originCtrl.clear();
       _destCtrl.clear();
       _selectedDate = null;
-      _priceRange = const RangeValues(0, 50000);
+      _priceRange = const RangeValues(0, 15000);
       _minSeats = 1;
       _needsLuggage = null;
     });
@@ -368,7 +1158,7 @@ class _HomePasajeroPageState extends State<HomePasajeroPage> {
                       child: RangeSlider(
                         values: tempRange,
                         min: 0,
-                        max: 100000,
+                        max: 15000,
                         divisions: 100,
                         labels: RangeLabels(
                           tempRange.start.round().toString(),
@@ -410,51 +1200,7 @@ class _HomePasajeroPageState extends State<HomePasajeroPage> {
                     ),
                     const SizedBox(height: 12),
 
-                    // Equipaje
-                    const Text('Equipaje',
-                        style: TextStyle(fontWeight: FontWeight.w600, color: kTextTitle)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        ChoiceChip(
-                          label: const Text('Todos'),
-                          selected: tempLuggage == null,
-                          selectedColor: kUAOOrange.withOpacity(0.2),
-                          backgroundColor: Colors.white,
-                          side: const BorderSide(color: kBorderColor),
-                          labelStyle: TextStyle(
-                            color: tempLuggage == null ? kUAORedDark : kTextTitle,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          onSelected: (_) => setMState(() => tempLuggage = null),
-                        ),
-                        ChoiceChip(
-                          label: const Text('Permite equipaje'),
-                          selected: tempLuggage == true,
-                          selectedColor: kUAOOrange.withOpacity(0.2),
-                          backgroundColor: Colors.white,
-                          side: const BorderSide(color: kBorderColor),
-                          labelStyle: TextStyle(
-                            color: tempLuggage == true ? kUAORedDark : kTextTitle,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          onSelected: (_) => setMState(() => tempLuggage = true),
-                        ),
-                        ChoiceChip(
-                          label: const Text('Sin equipaje'),
-                          selected: tempLuggage == false,
-                          selectedColor: kUAOOrange.withOpacity(0.2),
-                          backgroundColor: Colors.white,
-                          side: const BorderSide(color: kBorderColor),
-                          labelStyle: TextStyle(
-                            color: tempLuggage == false ? kUAORedDark : kTextTitle,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          onSelected: (_) => setMState(() => tempLuggage = false),
-                        ),
-                      ],
-                    ),
+                    
 
                     const SizedBox(height: 20),
                     Row(
@@ -470,7 +1216,7 @@ class _HomePasajeroPageState extends State<HomePasajeroPage> {
                               tempOrigin.clear();
                               tempDest.clear();
                               tempDate = null;
-                              tempRange = const RangeValues(0, 50000);
+                              tempRange = const RangeValues(0, 15000);
                               tempSeats = 1;
                               tempLuggage = null;
                               setMState(() {});
@@ -526,188 +1272,45 @@ class _HomePasajeroPageState extends State<HomePasajeroPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: kBG,
-      appBar: _buildAppBar(),
-      drawer: _AppDrawer(onClose: () => Navigator.of(context).pop()),
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ===== Banner superior (gris, con hamburguesa y nombre) =====
+Widget build(BuildContext context) {
+  return Scaffold(
+    backgroundColor: kBG,
+    appBar: _buildAppBar(),
+    drawer: _AppDrawer(onClose: () => Navigator.of(context).pop()),
 
-            // ===== Título y descripción =====
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'Buscar viaje',
-                    style: TextStyle(
-                      color: kTextTitle,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  SizedBox(height: 6),
-                  Text(
-                    'Filtra y encuentra cupos disponibles según tu origen, destino, fecha, '
-                    'precio y número de asientos.',
-                    style: TextStyle(color: kTextSubtitle),
-                  ),
-                ],
-              ),
-            ),
-
-            // ===== Barra de búsqueda rápida =====
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _originCtrl,
-                      decoration: InputDecoration(
-                        hintText: 'Origen',
-                        hintStyle: const TextStyle(color: kTextPlaceholder),
-                        prefixIcon: const Icon(Icons.trip_origin, color: kUAORed),
-                        isDense: true,
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderSide: const BorderSide(color: kBorderColor),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: const BorderSide(color: kUAORed, width: 1.5),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        suffixIcon: _originCtrl.text.isEmpty
-                            ? null
-                            : IconButton(
-                                icon: const Icon(Icons.clear, color: kUAORedDark),
-                                onPressed: () {
-                                  _originCtrl.clear();
-                                  _applyFilters();
-                                },
-                              ),
-                      ),
-                      style: const TextStyle(color: kTextTitle),
-                      onChanged: (_) => _applyFilters(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.arrow_forward, size: 18, color: kTextSubtitle),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _destCtrl,
-                      decoration: InputDecoration(
-                        hintText: 'Destino',
-                        hintStyle: const TextStyle(color: kTextPlaceholder),
-                        prefixIcon: const Icon(Icons.flag, color: kUAORed),
-                        isDense: true,
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderSide: const BorderSide(color: kBorderColor),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: const BorderSide(color: kUAORed, width: 1.5),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        suffixIcon: _destCtrl.text.isEmpty
-                            ? null
-                            : IconButton(
-                                icon: const Icon(Icons.clear, color: kUAORedDark),
-                                onPressed: () {
-                                  _destCtrl.clear();
-                                  _applyFilters();
-                                },
-                              ),
-                      ),
-                      style: const TextStyle(color: kTextTitle),
-                      onChanged: (_) => _applyFilters(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton.tonalIcon(
-                    onPressed: _openFilterSheet,
-                    icon: const Icon(Icons.filter_list),
-                    label: const Text('Filtros'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: kUAORed,
-                      side: const BorderSide(color: kUAORed),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // ===== Chips resumen de filtros =====
-            _FilterChipsSummary(
-              date: _selectedDate,
-              priceRange: _priceRange,
-              minSeats: _minSeats,
-              luggage: _needsLuggage,
-              onClearAll: _clearFilters,
-              hasAny: _hasAnyFilterApplied,
-            ),
-
-            // ===== Lista =====
-            Expanded(
-              child: _loading
-                  ? const _LoadingList()
-                  : RefreshIndicator(
-                      color: kUAORed,
-                      onRefresh: _onRefresh,
-                      child: _filtered.isEmpty
-                          ? const _EmptyState()
-                          : ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                              itemCount: _filtered.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 12),
-                              itemBuilder: (ctx, i) {
-                                final t = _filtered[i];
-                                return TripCard(
-                                  trip: t,
-                                  onTap: () {
-                                    // TODO: navegar a detalle
-                                  },
-                                );
-                              },
-                            ),
-                    ),
-            ),
-          ],
-        ),
+    // ======== CONTENIDO PRINCIPAL ========
+    body: SafeArea(
+      child: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          _buildTripsSection(),     // 0 - Buscar viaje
+          _buildMyReservations(),   // 1 - Mis reservas
+          _buildProfileSection(),   // 2 - Perfil
+        ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: kUAORed,
-        foregroundColor: Colors.white,
-        onPressed: _openFilterSheet,
-        icon: const Icon(Icons.search),
-        label: const Text('Filtrar'),
-      ),
-    );
-  }
+    ),
+
+    // FAB solo visible en la pestaña de “Viajes”
+    floatingActionButton: _selectedIndex == 0
+        ? FloatingActionButton.extended(
+            backgroundColor: kUAORed,
+            foregroundColor: Colors.white,
+            onPressed: _openFilterSheet,
+            icon: const Icon(Icons.search),
+            label: const Text('Filtrar'),
+          )
+        : null,
+
+    bottomNavigationBar: _buildBottomNavigationBar(),
+  );
+}
 
   bool get _hasAnyFilterApplied {
     return _originCtrl.text.isNotEmpty ||
         _destCtrl.text.isNotEmpty ||
         _selectedDate != null ||
         _priceRange.start != 0 ||
-        _priceRange.end != 50000 ||
+        _priceRange.end != 15000 ||
         _minSeats > 1 ||
         _needsLuggage != null;
   }
@@ -753,7 +1356,7 @@ class Trip {
   final DateTime dateTime;
   final int price; // COP
   final int seatsAvailable;
-  final bool allowsLuggage;
+  
   final double rating;
   final String vehicle;
 
@@ -765,17 +1368,25 @@ class Trip {
     required this.dateTime,
     required this.price,
     required this.seatsAvailable,
-    required this.allowsLuggage,
+    
     required this.rating,
     required this.vehicle,
   });
 }
 
 class TripCard extends StatelessWidget {
-  const TripCard({super.key, required this.trip, this.onTap});
+  const TripCard({
+    super.key,
+    required this.trip,
+    this.onTap,
+    this.onReserve,   
+    this.reserved = false, 
+  });
 
   final Trip trip;
   final VoidCallback? onTap;
+  final VoidCallback? onReserve; 
+  final bool reserved;           
 
   @override
   Widget build(BuildContext context) {
@@ -828,11 +1439,7 @@ class TripCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Icon(
-                            trip.allowsLuggage ? Icons.work : Icons.block,
-                            size: 18,
-                            color: trip.allowsLuggage ? kUAOOrange : kTextSubtitle,
-                          ),
+                          
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -854,21 +1461,41 @@ class TripCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       // Precio / asientos
+                      // Precio / asientos
                       Row(
                         children: [
                           Chip(
-                            label: Text('\$${trip.price}',
-                                style: const TextStyle(color: Colors.white)),
+                            label: Text('\$${trip.price}', style: const TextStyle(color: Colors.white)),
                             backgroundColor: kUAORed,
                             visualDensity: VisualDensity.compact,
                           ),
                           const SizedBox(width: 8),
                           Chip(
-                            label: Text('${trip.seatsAvailable} asientos',
-                                style: const TextStyle(color: kTextTitle)),
+                            label: Text('${trip.seatsAvailable} asientos', style: const TextStyle(color: kTextTitle)),
                             backgroundColor: kBG,
                             side: const BorderSide(color: kBorderColor),
                             visualDensity: VisualDensity.compact,
+                          ),
+                          const Spacer(),
+
+                          // === BOTÓN RESERVAR ===
+                          SizedBox(
+                            height: 36,
+                            child: ElevatedButton(
+                              // si no pasas onReserve, no lo deshabilites para que VEAS el botón
+                              onPressed: (trip.seatsAvailable <= 0)
+                                  ? null
+                                  : (onReserve ?? () {}),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: kUAORed,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                shape: const StadiumBorder(),
+                                elevation: 0,
+                                minimumSize: const Size(110, 36), // ancho mínimo para que no “desaparezca”
+                              ),
+                              child: Text(reserved ? 'Reservado' : 'Reservar'),
+                            ),
                           ),
                         ],
                       ),
@@ -1041,7 +1668,7 @@ class _FilterChipsSummary extends StatelessWidget {
       ));
     }
 
-    if (priceRange.start != 0 || priceRange.end != 50000) {
+    if (priceRange.start != 0 || priceRange.end != 15000) {
       chips.add(Chip(
         avatar: const Icon(Icons.attach_money, size: 16, color: Colors.white),
         label: Text(
