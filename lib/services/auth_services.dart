@@ -52,7 +52,7 @@ class AuthService {
         await _db.collection('usuarios').doc(user.uid).set({
           'idUsuario': user.uid,
           'correo': email,
-          'nombre': firstName + secondName,
+          'nombre': '$firstName $secondName',
           'apellidos': firstLastName + secondlastName,
           'tipoID': tipoID,
           'numeroID': numeroID,
@@ -68,7 +68,7 @@ class AuthService {
         await _db.collection('usuarios').doc(user.uid).set({
           'idUsuario': user.uid,
           'correo': email,
-          'nombre': firstName + secondName,
+          'nombre': '$firstName $secondName',
           'apellidos': firstLastName + secondlastName,
           'tipoID': tipoID,
           'numeroID': numeroID,

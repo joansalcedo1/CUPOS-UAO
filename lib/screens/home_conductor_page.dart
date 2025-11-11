@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart'; // Librería para animaciones Lottie
 import 'package:loading_animation_widget/loading_animation_widget.dart'; // Librería para animaciones de carga
 import 'package:animated_text_kit/animated_text_kit.dart'; // Librería para animaciones de texto
+import 'package:provider/provider.dart';
+import 'package:flutter_cuposuao/services/session_provider.dart';
 
 // ------ Modelo de Datos para Rutas ------
 // Representa una ruta creada por el conductor.
@@ -355,6 +357,8 @@ class _HomePageState extends State<HomePage> {
   // --- Widgets de la UI ---
   // AppBar personalizado.
   PreferredSizeWidget _buildAppBar() {
+    final user = context.watch<SessionProvider>().current;
+    final firstName = user?.firstName ?? 'Usuario';
     return AppBar(
       leadingWidth: 72,
       backgroundColor: kBG,
@@ -379,9 +383,9 @@ class _HomePageState extends State<HomePage> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                '¡Hola de nuevo Juan David!',
-                style: TextStyle(
+              Text(
+                '¡Hola de nuevo $firstName!',
+                style: const TextStyle(
                   color: kTextTitle,
                   fontSize: 18,
                   fontFamily: 'Inter',
@@ -390,14 +394,14 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 4),
               Row(
                 children: const [
-                  Icon(Icons.location_on, size: 14, color: kTextTitle),
+                  Icon(Icons.location_on, size: 14, color: kUAORedDark),
                   SizedBox(width: 4),
                   Text(
                     'Universidad Autonoma de Occidente',
                     style: TextStyle(
                       fontSize: 14,
                       fontFamily: 'Inter',
-                      color: kTextSubtitle,
+                      color: kTextTitle,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
